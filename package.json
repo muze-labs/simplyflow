@@ -63,9 +63,7 @@
     "README.md",
     "MUZE_ALIGNMENT.md",
     "dist/",
-    "src/",
-    "docs/",
-    "examples/"
+    "src/"
   ],
   "jest": {
     "transform": {},
