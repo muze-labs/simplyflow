@@ -69,13 +69,15 @@ SimplyFlow is powerful and useful, but it sits close to framework territory. It 
 
 **Principle:** Stable APIs.
 
-**Problem:** The README examples import from `simplyflow/src/state.mjs`, `src/bind.mjs`, and `src/model.mjs`.
+**Problem:** Earlier README examples imported from `simplyflow/src/state.mjs`, `src/bind.mjs`, and `src/model.mjs`.
 
 **Why it matters:** Importing from source files exposes internal layout as public API and makes refactoring harder.
 
 **Suggested direction:** Define stable export paths and update examples to use them. Keep source-path imports only in internal docs.
 
-**Status:** Open
+**Status:** Done
+
+**Decision:** The package is now published as `@muze-labs/simplyflow`, with stable entry points such as `@muze-labs/simplyflow`, `@muze-labs/simplyflow/state`, `@muze-labs/simplyflow/bind`, and `@muze-labs/simplyflow/model`. Public docs and examples now use those package names instead of `simplyflow/src/...` imports.
 
 ### 4. Add a minimal mental model document
 
