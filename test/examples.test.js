@@ -52,12 +52,7 @@ async function runHnpwaExample(step)
     jsonApi() {
       return {
         news: jest.fn(async () => sampleItems),
-        item: jest.fn(async () => sampleItem)
-      }
-    },
-    api() {
-      return {
-        news: jest.fn(async () => sampleItems),
+        list: jest.fn(async () => sampleItems),
         item: jest.fn(async () => sampleItem)
       }
     }
@@ -96,6 +91,15 @@ describe('HNPWA examples', () => {
       const closeScripts = html.match(/<\/script>/gi)?.length || 0
 
       expect(closeScripts).toBe(openScripts)
+    }
+  })
+
+  it('uses Metro jsonApi in HNPWA examples', () => {
+    for (const step of [1, 2, 3, 4, 5]) {
+      const html = readExample(step)
+
+      expect(html).toMatch(/metro\.jsonApi\s*\(/)
+      expect(html).not.toMatch(/metro\.api\s*\(/)
     }
   })
 
@@ -176,6 +180,15 @@ describe('HNPWA examples', () => {
 
   it('renders step 2 with loaded stories', async () => {
     await runHnpwaExample(2)
+
+    expect(document.querySelectorAll('li.item')).toHaveLength(2)
+    expect(document.body.textContent).toContain('One')
+    expect(document.body.textContent).toContain('Two')
+  })
+
+
+  it('renders step 3 with loaded stories', async () => {
+    await runHnpwaExample(3)
 
     expect(document.querySelectorAll('li.item')).toHaveLength(2)
     expect(document.body.textContent).toContain('One')

@@ -131,7 +131,7 @@ var hnpwa = simply.app({
     item: null,
     section: 'news'
   },
-  api: metro.api(
+  api: metro.jsonApi(
     'https://api.hackerwebapp.com/',
     {
       list: function(section, page=1) {
