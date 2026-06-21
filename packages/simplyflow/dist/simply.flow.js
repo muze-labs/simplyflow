@@ -1339,7 +1339,9 @@
         if (newTemplate != reusableItem[DEP.TEMPLATE]) {
           context.element.replaceChild(this.applyTemplate(context), reusableItem);
         } else {
-          context.element.insertBefore(reusableItem, item);
+          if (reusableItem !== item) {
+            context.element.insertBefore(reusableItem, item);
+          }
           updateItemKey(reusableItem, index, context.path, keyAttribute, attributes, attrQuery);
           reusableItem[DEP.VALUE] = value;
         }
@@ -1432,7 +1434,9 @@
         if (newTemplate != reusableItem[DEP.TEMPLATE]) {
           context.element.replaceChild(this.applyTemplate(context), reusableItem);
         } else {
-          context.element.insertBefore(reusableItem, item);
+          if (reusableItem !== item) {
+            context.element.insertBefore(reusableItem, item);
+          }
           updateItemKey(reusableItem, key, context.path, keyAttribute, attributes, attrQuery);
           reusableItem[DEP.VALUE] = value;
         }
@@ -2273,6 +2277,15 @@
       this.state.options.columns = columnOptions;
       const projections = /* @__PURE__ */ new WeakMap();
       return throttledEffect(() => {
+        const visibleKeys = [];
+        const visible = /* @__PURE__ */ new Set();
+        const columns2 = this.state.options.columns;
+        for (let key of Object.keys(columns2)) {
+          if (!columns2[key]?.hidden) {
+            visibleKeys.push(key);
+            visible.add(key);
+          }
+        }
         return data.current.map((input2) => {
           const source = raw(input2);
           let result = source && typeof source === "object" ? projections.get(source) : null;
@@ -2282,14 +2295,10 @@
               projections.set(source, result);
             }
           }
-          const visible = /* @__PURE__ */ new Set();
-          for (let key of Object.keys(this.state.options.columns)) {
-            if (!this.state.options.columns[key]?.hidden) {
-              visible.add(key);
-              const value = input2?.[key] ?? null;
-              if (result[key] !== value) {
-                result[key] = value;
-              }
+          for (let key of visibleKeys) {
+            const value = input2?.[key] ?? null;
+            if (result[key] !== value) {
+              result[key] = value;
             }
           }
           for (let key of Object.keys(result)) {

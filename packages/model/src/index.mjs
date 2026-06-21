@@ -211,6 +211,17 @@ export function columns(options={}) {
 		this.state.options.columns = columnOptions
 		const projections = new WeakMap()
 		return throttledEffect(() => {
+			const visibleKeys = []
+			const visible = new Set()
+			const columns = this.state.options.columns
+
+			for (let key of Object.keys(columns)) {
+				if (!columns[key]?.hidden) {
+					visibleKeys.push(key)
+					visible.add(key)
+				}
+			}
+
 			return data.current.map(input => {
 				const source = raw(input)
 				let result = source && typeof source === 'object'
@@ -223,14 +234,10 @@ export function columns(options={}) {
 					}
 				}
 
-				const visible = new Set()
-				for (let key of Object.keys(this.state.options.columns)) {
-					if (!this.state.options.columns[key]?.hidden) {
-						visible.add(key)
-						const value = input?.[key] ?? null
-						if (result[key] !== value) {
-							result[key] = value
-						}
+				for (let key of visibleKeys) {
+					const value = input?.[key] ?? null
+					if (result[key] !== value) {
+						result[key] = value
 					}
 				}
 				for (let key of Object.keys(result)) {

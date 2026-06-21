@@ -185,7 +185,9 @@ export function arrayByTemplates(context)
             if (newTemplate != reusableItem[DEP.TEMPLATE]) {
                 context.element.replaceChild(this.applyTemplate(context), reusableItem)
             } else {
-                context.element.insertBefore(reusableItem, item)
+                if (reusableItem !== item) {
+                    context.element.insertBefore(reusableItem, item)
+                }
                 updateItemKey(reusableItem, index, context.path, keyAttribute, attributes, attrQuery)
                 reusableItem[DEP.VALUE] = value
             }
@@ -306,7 +308,9 @@ export function objectByTemplates(context)
             if (newTemplate != reusableItem[DEP.TEMPLATE]) {
                 context.element.replaceChild(this.applyTemplate(context), reusableItem)
             } else {
-                context.element.insertBefore(reusableItem, item)
+                if (reusableItem !== item) {
+                    context.element.insertBefore(reusableItem, item)
+                }
                 updateItemKey(reusableItem, key, context.path, keyAttribute, attributes, attrQuery)
                 reusableItem[DEP.VALUE] = value
             }

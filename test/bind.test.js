@@ -333,6 +333,51 @@ describe('bind can', () => {
     }, 10)
   })
 
+
+  it('does not move already ordered reusable map items', (done) => {
+    const source = `<div data-flow-map="people">
+<template>
+  <span data-flow-field="name"></span>
+</template>
+</div>`
+    document.body.innerHTML = source
+
+    const ada = { name: 'Ada' }
+    const grace = { name: 'Grace' }
+    const data = signal({
+      people: {
+        ada,
+        grace
+      }
+    })
+    const databind = bind({
+      container: document.body,
+      root: data
+    })
+
+    setTimeout(() => {
+      const insertBefore = jest.spyOn(Element.prototype, 'insertBefore')
+      try {
+        data.people = { ada, grace }
+        setTimeout(() => {
+          try {
+            expect(insertBefore).not.toHaveBeenCalled()
+            done()
+          } catch(error) {
+            done(error)
+          } finally {
+            insertBefore.mockRestore()
+            databind.destroy()
+          }
+        }, 100)
+      } catch(error) {
+        insertBefore.mockRestore()
+        databind.destroy()
+        done(error)
+      }
+    }, 100)
+  })
+
   it('reuse map item when key changes but value reference stays the same', (done) => {
     const source = `<div data-flow-map="people">
 <template>
