@@ -32,12 +32,12 @@
 	</svg>
 </button>
 <nav class="ds-datatable-column-toggle ds-dropdown-nav ds-dropdown-right ds-align-left" popover id="menu">
-	<ul class="ds-dropdown-list" data-flow-map="options.columns">
+	<ul class="ds-dropdown-list" data-simply-map="options.columns">
 		<template>
 			<li class="ds-dropdown-item" data-simply-command="dsToggleColumn">
 				<label>
-					<input type="checkbox" value=":empty" data-flow-field="hidden">
-					<span data-flow-field="name"></span>
+					<input type="checkbox" value=":empty" data-simply-field="hidden">
+					<span data-simply-field="name"></span>
 				</label>
 			</li>
 		</template>
@@ -47,10 +47,10 @@
 	<div class="ds-datatable-scrollbar"></div>
 	<table class="ds-datatable ds-datatable-sticky-header ds-datatable-rulers ds-datatable-virtual-scroll">
 	<thead>
-		<tr data-flow-map="options.columns">
-			<template data-flow-field="hidden" data-flow-match=":empty">
+		<tr data-simply-map="options.columns">
+			<template data-simply-field="hidden" data-simply-match=":empty">
 				<th>
-					<span data-simply-command="toggleSort" data-flow-field="name"></span>
+					<span data-simply-command="toggleSort" data-simply-field="name"></span>
 					<button class="ds-button ds-button-naked ds-dropdown" data-simply-command="toggleFilter">
 						<svg class="ds-icon ds-icon-feather">
 							<use xlink:href="../css/feather-sprite.svg#filter"></use>
@@ -63,11 +63,11 @@
 			</template>
 		</tr>
 	</thead>
-	<tbody data-flow-list="users.current">
+	<tbody data-simply-list="users.current">
 		<template>
-			<tr data-flow-map=":value">
+			<tr data-simply-map=":value">
 				<template>
-					<td data-flow-field=":value"></td>
+					<td data-simply-field=":value"></td>
 				</template>
 			</tr>
 		</template>
@@ -77,12 +77,10 @@
 </main>
 <ouput class="source" data-js="show-highlight-here"></output>
 
-<script src="https://cdn.jsdelivr.net/npm/simplyview/dist/simply.everything.js"></script>
 <script class="xsource" type="module" data-js="highlight">
 	import '@muze-labs/simplyflow'
-	const {signal, effect, batch} = simply.state
-	const {bind} = simply
-	const {model, paging, sort, filter, columns, scroll} = simply.model
+	const {effect, batch, raw} = simply.state
+	const {model, sort, filter, columns, scroll} = simply.model
 
 	async function main() {
 		let response = await fetch('users.json')
@@ -103,7 +101,7 @@
 			matches: function(row) {
 				for (let property in this.filters) {
 					let filterBy = this.filters[property]
-					if (filterBy && !row[property].match(filterBy[Symbol.xRay])) {
+					if (filterBy && !row[property].match(raw(filterBy))) {
 						return false
 					}
 				}
@@ -156,12 +154,12 @@
 			commands: {
 				toggleSort: function(el, value) {
 					batch(() => {
-						this.state.options.sort.sortBy = el.parentElement.dataset.flowKey
-						const dir = this.state.options.sort.direction
+						this.data.options.sort.sortBy = el.parentElement.dataset.simplyKey
+						const dir = this.data.options.sort.direction
 						if (dir=='asc') {
-							this.state.options.sort.direction = 'desc'
+							this.data.options.sort.direction = 'desc'
 						} else {
-							this.state.options.sort.direction = 'asc'
+							this.data.options.sort.direction = 'asc'
 						}
 					})
 				},
@@ -169,20 +167,20 @@
 					el.querySelector('.ds-datatable-column-toggle').classList.toggle('ds-selected')
 				},
 				dsToggleColumn: function(el, value) {
-					const key = el.dataset.flowKey
-					const columns = this.state.options.columns
+					const key = el.dataset.simplyKey
+					const columns = this.data.options.columns
 					columns[key].hidden = columns[key].hidden ? 0 : 1
 				},
 				filter: function(el,value) {
 					// find property name
-					const property = el.closest('[data-flow-key').dataset.flowKey
+					const property = el.closest('[data-simply-key]').dataset.simplyKey
 					if (value) {
 						// set column filter
-						this.state.options.propertyFilter.filters[property] = new RegExp(value, 'i')
-						this.state.options.propertyFilter.enabled = true
+						this.data.options.propertyFilter.filters[property] = new RegExp(value, 'i')
+						this.data.options.propertyFilter.enabled = true
 					} else {
-						this.state.options.propertyFilter.enabled = false
-						delete this.state.options.propertyFilter.filters[property]
+						this.data.options.propertyFilter.enabled = false
+						delete this.data.options.propertyFilter.filters[property]
 					}
 				},
 				toggleFilter: function(el, value) {
@@ -195,28 +193,21 @@
 					}
 				}
 			},
-			state: signal({
+			data: {
 				users: usersModel.view,
 				options: usersModel.state.options
-			})
+			}
 		})
-
-		// set up databinding to render the users list
-		bind({
-			attribute: 'data-flow',
-			root: usersApp.state
-		})
-
 		// update the sort indicators in the column on changes
 		let lastSortColumn = null
 		effect(() => {
-			const sortBy = usersApp.state.options.sort.sortBy
-			const sortDirection = usersApp.state.options.sort.direction
+			const sortBy = usersApp.data.options.sort.sortBy
+			const sortDirection = usersApp.data.options.sort.direction
 			if (lastSortColumn) {
 				lastSortColumn.classList.remove('ds-datatable-sorted-ascending')
 				lastSortColumn.classList.remove('ds-datatable-sorted-descending')
 			}
-			lastSortColumn = usersApp.container.querySelector(`th[data-flow-key="${sortBy}"]`)
+			lastSortColumn = usersApp.container.querySelector(`th[data-simply-key="${sortBy}"]`)
 			if (lastSortColumn) {
 				lastSortColumn.classList.add(`ds-datatable-sorted-${sortDirection}ending`)
 			}

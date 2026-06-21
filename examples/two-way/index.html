@@ -9,24 +9,24 @@
   <body>
     <h1>SimplyFlow two-way databinding test</h1>
     <p>Editor:</p>
-    <div id="editor" data-flow-field="demo" contenteditable>Initial content</div>
+    <div id="editor" data-simply-edit="demo" contenteditable>Initial content</div>
     <p>Listener</p>
-    <div data-flow-field="demo"></div>
-    <ul data-flow-list="list">
+    <div data-simply-field="demo"></div>
+    <ul data-simply-list="list">
       <template>
-        <li data-flow-field=":value">field</li>
+        <li data-simply-field=":value">field</li>
       </template>
     </ul>
     <script src="../../packages/simplyflow/dist/simply.flow.js"></script>
     <script>
-      const data = simply.state.signal({
-        list: ['a','b']
-      })
-      simply.bind({
-        root: data,
-        twoway: true
+      const twoWayApp = simply.app({
+        data: {
+          demo: 'Initial content',
+          list: ['a','b']
+        }
       })
       const editor = document.getElementById('editor')
+      window.twoWayApp = twoWayApp
     </script>
   </body>
 </html>

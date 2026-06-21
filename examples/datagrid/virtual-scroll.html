@@ -32,12 +32,12 @@
 	</svg>
 </button>
 <nav class="ds-datatable-column-toggle ds-dropdown-nav ds-dropdown-right ds-align-left" popover id="menu">
-	<ul class="ds-dropdown-list" data-flow-map="users.state.options.columns">
+	<ul class="ds-dropdown-list" data-simply-map="users.state.options.columns">
 		<template>
 			<li class="ds-dropdown-item" data-simply-command="dsToggleColumn">
 				<label>
-					<input type="checkbox" value=":empty" data-flow-field="hidden">
-					<span data-flow-field="name"></span>
+					<input type="checkbox" value=":empty" data-simply-field="hidden">
+					<span data-simply-field="name"></span>
 				</label>
 			</li>
 		</template>
@@ -47,17 +47,17 @@
 	<div class="ds-datatable-scrollbar"></div>
 	<table class="ds-datatable ds-datatable-sticky-header ds-datatable-rulers ds-datatable-virtual-scroll">
 	<thead>
-		<tr data-flow-map="users.state.options.columns">
-			<template data-flow-field="hidden" data-flow-match=":empty">
-				<th data-simply-command="toggleSort" data-flow-field="name"></th>
+		<tr data-simply-map="users.state.options.columns">
+			<template data-simply-field="hidden" data-simply-match=":empty">
+				<th data-simply-command="toggleSort" data-simply-field="name"></th>
 			</template>
 		</tr>
 	</thead>
-	<tbody data-flow-list="users.view.current">
+	<tbody data-simply-list="users.view.current">
 		<template>
-			<tr data-flow-map=":value">
+			<tr data-simply-map=":value">
 				<template>
-					<td data-flow-field=":value"></td>
+					<td data-simply-field=":value"></td>
 				</template>
 			</tr>
 		</template>
@@ -67,12 +67,10 @@
 </main>
 <ouput class="source" data-js="show-highlight-here"></output>
 
-<script src="https://cdn.jsdelivr.net/npm/simplyview/dist/simply.everything.js"></script>
 <script class="xsource" type="module" data-js="highlight">
 	import '@muze-labs/simplyflow'
-	const {signal, effect, batch} = simply.state
-	const {bind} = simply
-	const {model, paging, sort, filter, columns, scroll} = simply.model
+	const {effect, batch} = simply.state
+	const {model, sort, columns, scroll} = simply.model
 
 	async function main() {
 		let response = await fetch('users.json')
@@ -126,30 +124,21 @@
 			}
 		}))
 
-		usersModel.container = document.body
-		// set up databinding to render the users list
-		bind({
-			container: usersModel.container,
-			attribute: 'data-flow',
-			root: {
+		const usersApp = simply.app({
+			data: {
 				users: usersModel
-			}
-		})
-
-		// add commands to handle user interaction
-		simply.command({
-			app: usersModel,
+			},
 			commands: {
 				toggleSort: function(el, value) {
 					batch(() => {
 						const sortBy = el.innerText.trim()
-						this.state.options.sort.sortBy = Object.keys(this.state.options.columns)
-							.find(key => this.state.options.columns[key].name==sortBy)
-						const dir = this.state.options.sort.direction
+						this.data.users.state.options.sort.sortBy = Object.keys(this.data.users.state.options.columns)
+							.find(key => this.data.users.state.options.columns[key].name==sortBy)
+						const dir = this.data.users.state.options.sort.direction
 						if (dir=='asc') {
-							this.state.options.sort.direction = 'desc'
+							this.data.users.state.options.sort.direction = 'desc'
 						} else {
-							this.state.options.sort.direction = 'asc'
+							this.data.users.state.options.sort.direction = 'asc'
 						}
 					})
 				},
@@ -157,8 +146,8 @@
 					el.querySelector('.ds-datatable-column-toggle').classList.toggle('ds-selected')
 				},
 				dsToggleColumn: function(el, value) {
-					const key = el.dataset.flowKey
-					const columns = this.state.options.columns
+					const key = el.dataset.simplyKey
+					const columns = this.data.users.state.options.columns
 					columns[key].hidden = columns[key].hidden ? 0 : 1
 				}
 			}
@@ -173,7 +162,7 @@
 				lastSortColumn.classList.remove('ds-datatable-sorted-ascending')
 				lastSortColumn.classList.remove('ds-datatable-sorted-descending')
 			}
-			lastSortColumn = usersModel.container.querySelector(`th[data-flow-key="${sortBy}"]`)
+			lastSortColumn = usersApp.container.querySelector(`th[data-simply-key="${sortBy}"]`)
 			if (lastSortColumn) {
 				lastSortColumn.classList.add(`ds-datatable-sorted-${sortDirection}ending`)
 			}
@@ -181,6 +170,7 @@
 
 		// make the usersModel available in the console
 		window.usersModel = usersModel
+		window.usersApp = usersApp
 	}
 
 	main()

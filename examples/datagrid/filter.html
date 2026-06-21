@@ -22,10 +22,10 @@
 <div class="ds-datatable-main">
 	<table class="ds-datatable ds-datatable-sticky-header ds-datatable-rulers">
 	<thead>
-		<tr data-flow-map="options.columns">
-			<template data-flow-field="hidden" data-flow-match=":empty">
+		<tr data-simply-map="options.columns">
+			<template data-simply-field="hidden" data-simply-match=":empty">
 				<th>
-					<span data-flow-field="name"></span>
+					<span data-simply-field="name"></span>
           <button class="ds-button ds-button-naked ds-dropdown" data-simply-command="toggleFilter">
            	<svg class="ds-icon ds-icon-feather">
             	<use xlink:href="../css/feather-sprite.svg#filter"></use>
@@ -38,11 +38,11 @@
 			</template>
 		</tr>
 	</thead>
-	<tbody data-flow-list="users.current">
+	<tbody data-simply-list="users.current">
 		<template>
-			<tr data-flow-map=":value">
+			<tr data-simply-map=":value">
 				<template>
-					<td data-flow-field=":value"></td>
+					<td data-simply-field=":value"></td>
 				</template>
 			</tr>
 		</template>
@@ -51,12 +51,10 @@
 </div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/simplyview/dist/simply.everything.js"></script>
 <script class="source" type="module">
 	import '@muze-labs/simplyflow'
-	const {signal, effect, batch} = simply.state
-	const {bind} = simply
-	const {model, paging, sort, filter, columns} = simply.model
+	const {raw} = simply.state
+	const {model, filter, columns} = simply.model
 	
 	async function main() {
 		let response = await fetch('users.json')
@@ -105,7 +103,7 @@
 			matches: function(row) {
 				for (let property in this.filters) {
 					let filterBy = this.filters[property]
-					if (filterBy && !row[property].match(filterBy[Symbol.xRay])) {
+					if (filterBy && !row[property].match(raw(filterBy))) {
 						return false
 					}
 				}
@@ -117,7 +115,7 @@
 			commands: {
 				filter: function(el,value) {
 					// find property name
-					const property = el.closest('[data-flow-key').dataset.flowKey
+					const property = el.closest('[data-simply-key]').dataset.simplyKey
 					// set column filter
 					usersModel.state.options.propertyFilter.filters[property] = new RegExp(value, 'i')
 				},
@@ -131,15 +129,10 @@
 					}
 				}
 			},
-			state: signal({
+			data: {
 				users: usersModel.view,
 				options: usersModel.state.options
-			})
-		})
-
-		bind({
-			attribute: 'data-flow',
-			root: usersApp.state
+			}
 		})
 
 

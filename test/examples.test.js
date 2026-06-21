@@ -68,7 +68,6 @@ async function runHnpwaExample(step)
     .join('\n')
     .replace(/^import .*$/mg, '')
     .replace('var hnpwa =', 'globalThis.hnpwa =')
-    .replace('simply.bind({', 'globalThis.hnpwaBinding = simply.bind({')
 
   await globalThis.eval(`(async () => {${moduleCode}\n})()`)
   await wait(150)
@@ -124,6 +123,28 @@ describe('HNPWA examples', () => {
       expect(importMap.imports['@muze-labs/simplyflow']).toBe(
         '../../packages/simplyflow/dist/simply.flow.js'
       )
+    }
+  })
+
+
+
+  it('keeps beginner examples on data-simply and app.data', () => {
+    const files = [
+      ...fs.readdirSync('examples/hnpwa').filter(file => file.endsWith('.html')).map(file => `examples/hnpwa/${file}`),
+      ...fs.readdirSync('examples/datagrid').filter(file => file.endsWith('.html')).map(file => `examples/datagrid/${file}`),
+      'examples/two-way/index.html',
+      'examples/counter/index.html',
+      'examples/todo/index.html'
+    ]
+
+    for (const file of files) {
+      const html = fs.readFileSync(file, 'utf8')
+
+      expect(html).not.toMatch(/data-flow-/)
+      expect(html).not.toMatch(/simply\.bind\s*\(/)
+      expect(html).not.toMatch(/\bbind\s*\(\s*\{/)
+      expect(html).not.toMatch(/simply\.command\s*\(/)
+      expect(html).not.toMatch(/simplyview/)
     }
   })
 

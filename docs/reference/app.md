@@ -58,6 +58,7 @@ const contacts = app({
 | `routes` | `object` | URL routes. See [Routes](route.md). |
 | `shortcuts` | `object` | Keyboard shortcuts. See [Shortcuts](shortcut.md). |
 | `behaviors` | `object` | Reusable DOM behaviors. See [Behaviors](behavior.md). |
+| `transformers` | `object` | Named binding transformers used by `data-simply-transform`. See [Binding transformers](bind-transformers.md). |
 | `templates` | `object` | Named template strings inserted into the app container as `<template id="name">`. |
 | `styles` | `object` | Named style strings inserted into the app container as `<style id="name.css">`. |
 | `components` | `object` | Advanced/experimental reusable app option groups. Component design is still evolving. |
@@ -96,10 +97,36 @@ The returned app object contains:
 | `app.shortcuts` | Shortcut controller, when shortcuts are configured. |
 | `app.behaviors` | Behavior controller, when behaviors are configured. |
 | `app.includes` | Include controller. Created automatically for the app container. |
+| `app.transformers` | Transformer map passed to the default binding. |
 | `app.binding` | Lower-level binding controller. |
 | `app.destroyed` | `true` after `app.destroy()` is called. |
 
 The app object is also available as `this` inside commands, actions, behaviors, route functions and lifecycle functions.
+
+
+## Binding transformers
+
+Pass custom binding transformers through the app constructor. The app's default binding uses them automatically with `data-simply-transform`:
+
+```html
+<a data-simply-field="story.id" data-simply-transform="storyLink">
+  <span data-simply-field="story.title"></span>
+</a>
+```
+
+```js
+const news = simply.app({
+  data: {
+    story: { id: 42, title: 'A tiny dragon learns HTML' }
+  },
+  transformers: {
+    storyLink(context, next) {
+      context.value = { href: `#story/${context.value}` }
+      next(context)
+    }
+  }
+})
+```
 
 ## `app.destroy()`
 

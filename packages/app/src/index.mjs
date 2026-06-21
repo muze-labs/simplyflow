@@ -21,7 +21,8 @@ const APP_OPTIONS = [
     'commands',
     'shortcuts',
     'routes',
-    'actions'
+    'actions',
+    'transformers'
 ]
 
 class SimplyApp
@@ -43,6 +44,7 @@ class SimplyApp
         this.onError = options.onError
         this.components = options.components
         this.baseURL = options.baseURL
+        this.transformers = options.transformers
 
         installTemplates(this.container, options.templates)
         installStyles(this.container, options.styles)
@@ -57,6 +59,7 @@ class SimplyApp
                 case 'onError':
                 case 'components':
                 case 'baseURL':
+                case 'transformers':
                     break
                 case 'commands':
                     this.commands = commands({ app: this, container: this.container, commands: options.commands})
@@ -89,7 +92,8 @@ class SimplyApp
         this.binding = bind({
             root: this.data,
             container: this.container,
-            attribute: 'data-simply'
+            attribute: 'data-simply',
+            transformers: this.transformers
         })
 
         this.includes = includes({ container: this.container })

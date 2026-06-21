@@ -22,8 +22,8 @@
 	<button data-simply-command="pagePrev" class="ds-button"><svg class="ds-icon ds-icon-feather">
 			<use xlink:href="../css/feather-sprite.svg#chevron-left"></use>
 		</svg></button>
-	<span data-flow-field="numbers.state.options.paging.page"></span> /
-	<span data-flow-field="numbers.state.options.paging.max"></span>
+	<span data-simply-field="numbers.state.options.paging.page"></span> /
+	<span data-simply-field="numbers.state.options.paging.max"></span>
 	<button data-simply-command="pageNext" class="ds-button"><svg class="ds-icon ds-icon-feather">
 			<use xlink:href="../css/feather-sprite.svg#chevron-right"></use>
 		</svg></button>
@@ -32,17 +32,17 @@
 <div class="ds-datatable-main">
 	<table class="ds-datatable ds-datatable-sticky-header ds-datatable-rulers">
 	<thead>
-		<tr data-flow-list="columns">
+		<tr data-simply-list="columns">
 			<template>
-				<th data-simply-command="toggleSort" data-flow-field=":value"></th>
+				<th data-simply-command="toggleSort" data-simply-field=":value"></th>
 			</template>
 		</tr>
 	</thead>
-	<tbody data-flow-list="numbers.view.current">
+	<tbody data-simply-list="numbers.view.current">
 		<template>
-			<tr data-flow-map=":value">
+			<tr data-simply-map=":value">
 				<template>
-					<td data-flow-field=":value"></td>
+					<td data-simply-field=":value"></td>
 				</template>
 			</tr>
 		</template>
@@ -51,12 +51,10 @@
 </div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/simplyview/dist/simply.everything.js"></script>
 <script class="source" type="module">
 	import '@muze-labs/simplyflow'
-	const {signal, effect, batch} = simply.state
-	const {bind} = simply
-	const {model, paging, sort, filter, columns} = simply.model
+	const {effect, batch} = simply.state
+	const {model, paging, sort} = simply.model
 	
 	// generate a random list of numbers
 	const data = []
@@ -81,36 +79,27 @@
 		pageSize: 25
 	}))
 
-	numbersModel.container = document.body
-	// set up databinding to render the numbers list
-	bind({
-		container: numbersModel.container,
-		attribute: 'data-flow',
-		root: {
+	const numbersApp = simply.app({
+		data: {
 			numbers: numbersModel,
 			columns: ['ID','Value']
-		}
-	})
-
-	// add commands to handle user interaction
-	simply.command({
-		app: numbersModel,
+		},
 		commands: {
 			pagePrev: function(el, value) {
-				this.state.options.paging.page--
+				this.data.numbers.state.options.paging.page--
 			},
 			pageNext: function(el, value) {
-				this.state.options.paging.page++
+				this.data.numbers.state.options.paging.page++
 			},
 			toggleSort: function(el, value) {
 				batch(() => {
 					const sortBy = el.innerText.trim().toLowerCase()
-					this.state.options.sort.sortBy = sortBy
-					const dir = this.state.options.sort.direction
+					this.data.numbers.state.options.sort.sortBy = sortBy
+					const dir = this.data.numbers.state.options.sort.direction
 					if (dir=='asc') {
-						this.state.options.sort.direction = 'desc'
+						this.data.numbers.state.options.sort.direction = 'desc'
 					} else {
-						this.state.options.sort.direction = 'asc'
+						this.data.numbers.state.options.sort.direction = 'asc'
 					}
 				})
 			}
@@ -126,7 +115,7 @@
 			lastSortColumn.classList.remove('ds-datatable-sorted-ascending')
 			lastSortColumn.classList.remove('ds-datatable-sorted-descending')
 		}
-		lastSortColumn = numbersModel.container.querySelector(`th[data-flow-key="${sortBy}"]`)
+		lastSortColumn = numbersApp.container.querySelector(`th[data-simply-key="${sortBy}"]`)
 		if (lastSortColumn) {
 			lastSortColumn.classList.add(`ds-datatable-sorted-${sortDirection}ending`)
 		}
@@ -134,5 +123,6 @@
 
 	// make the numbersModel available in the console
 	window.numbersModel = numbersModel
+	window.numbersApp = numbersApp
 	
 </script>

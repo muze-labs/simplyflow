@@ -58,6 +58,29 @@ describe('app API', () => {
     testApp.destroy()
   })
 
+
+  it('passes app transformers to the default binding', async () => {
+    document.body.innerHTML = `<div id="app"><a data-simply-field="id" data-simply-transform="item_link">Item</a></div>`
+    const container = document.getElementById('app')
+    const testApp = app({
+      container,
+      data: {
+        id: 42
+      },
+      transformers: {
+        item_link(context, next) {
+          context.value = { href: `#item/${context.value}` }
+          next(context)
+        }
+      }
+    })
+
+    await wait()
+    expect(container.querySelector('a').getAttribute('href')).toBe('#item/42')
+
+    testApp.destroy()
+  })
+
   it('uses data-simply-edit for editable fields', async () => {
     document.body.innerHTML = `<div id="app"><input data-simply-edit="name"><textarea data-simply-edit="note"></textarea></div>`
     const container = document.getElementById('app')

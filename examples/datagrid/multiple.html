@@ -17,17 +17,17 @@
 		<div>
 			<table class="ds-datatable ds-datatable-sticky-header ds-datatable-rulers ds-datatable-virtual-scroll">
 			<thead>
-				<tr data-flow-map="columns">
-					<template data-flow-field="hidden" data-flow-match=":empty">
-						<th data-simply-command="toggleSort" data-flow-field="name"></th>
+				<tr data-simply-map="columns">
+					<template data-simply-field="hidden" data-simply-match=":empty">
+						<th data-simply-command="toggleSort" data-simply-field="name"></th>
 					</template>
 				</tr>
 			</thead>
-			<tbody data-flow-list="rows">
+			<tbody data-simply-list="rows">
 				<template>
-					<tr data-flow-map=":value">
+					<tr data-simply-map=":value">
 						<template>
-							<td data-flow-field=":value"></td>
+							<td data-simply-field=":value"></td>
 						</template>
 					</tr>
 				</template>
@@ -35,21 +35,19 @@
 			</table>
 		</div>
 	</template>
-	<div data-flow-field="users">
-		<template rel="datatable" data-flow-link="columns=users.state.options.columns;rows=users.view.current"></template>
+	<div data-simply-field="users">
+		<template rel="datatable" data-simply-link="columns=users.state.options.columns;rows=users.view.current"></template>
 	</div>
-	<div data-flow-field="groups">
-		<template rel="datatable" data-flow-link="columns=groups.state.options.columns;rows=groups.view.current"></template>
+	<div data-simply-field="groups">
+		<template rel="datatable" data-simply-link="columns=groups.state.options.columns;rows=groups.view.current"></template>
 	</div>
 </main>
 <output class="source" data-js="show-highlight-here"></output>
 
-<script src="https://cdn.jsdelivr.net/npm/simplyview/dist/simply.everything.js"></script>
 <script class="source" type="module" data-js="highlight">
 	import '@muze-labs/simplyflow'
-	const {signal, effect, batch} = simply.state
-	const {bind} = simply
-	const {model, paging, sort, filter, columns, scroll} = simply.model
+	const {effect, batch} = simply.state
+	const {model, sort, columns, scroll} = simply.model
 
 	async function main() {
 		const usersModel = await getUsersModel()
@@ -62,13 +60,13 @@
 				toggleSort: function(el, value) {
 					batch(() => {
 						const sortBy = el.innerText.trim()
-						this.state.options.sort.sortBy = Object.keys(this.state.options.columns)
-							.find(key => this.state.options.columns[key].name==sortBy)
-						const dir = this.state.options.sort.direction
+						this.data.users.state.options.sort.sortBy = Object.keys(this.data.users.state.options.columns)
+							.find(key => this.data.users.state.options.columns[key].name==sortBy)
+						const dir = this.data.users.state.options.sort.direction
 						if (dir=='asc') {
-							this.state.options.sort.direction = 'desc'
+							this.data.users.state.options.sort.direction = 'desc'
 						} else {
-							this.state.options.sort.direction = 'asc'
+							this.data.users.state.options.sort.direction = 'asc'
 						}
 					})
 				},
@@ -76,34 +74,28 @@
 					el.querySelector('.ds-datatable-column-toggle').classList.toggle('ds-selected')
 				},
 				dsToggleColumn: function(el, value) {
-					const key = el.dataset.flowKey
-					const columns = this.state.options.columns
+					const key = el.dataset.simplyKey
+					const columns = this.data.users.state.options.columns
 					columns[key].hidden = columns[key].hidden ? 0 : 1
 				}
 			},
-			state: signal({
+			data: {
 				users: usersModel,
 				groups: groupsModel
-			})
+			}
 		})
 		window.app = app
-
-		bind({
-			container: document.body,
-			attribute: 'data-flow',
-			root: app.state
-		})
 
 		// update the sort indicators in the column on changes
 		let lastSortColumn = null
 		effect(() => {
-			const sortBy = app.state.users.state.options.sort.sortBy
-			const sortDirection = app.state.users.state.options.sort.direction
+			const sortBy = app.data.users.state.options.sort.sortBy
+			const sortDirection = app.data.users.state.options.sort.direction
 			if (lastSortColumn) {
 				lastSortColumn.classList.remove('ds-datatable-sorted-ascending')
 				lastSortColumn.classList.remove('ds-datatable-sorted-descending')
 			}
-			lastSortColumn = app.container.querySelector(`th[data-flow-key="${sortBy}"]`)
+			lastSortColumn = app.container.querySelector(`th[data-simply-key="${sortBy}"]`)
 			if (lastSortColumn) {
 				lastSortColumn.classList.add(`ds-datatable-sorted-${sortDirection}ending`)
 			}

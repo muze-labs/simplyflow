@@ -25,40 +25,40 @@
 </header>
 
 <main>
-<section data-flow-field="page">
-    <template data-flow-match="items">
-        <ul class="items root" data-flow-list="items">
+<section data-simply-field="page">
+    <template data-simply-match="items">
+        <ul class="items root" data-simply-list="items">
         <template>
             <li class="item">
-                <a data-flow-field="id" data-flow-transform="comments_link">
-                    <h2 data-flow-field="title" data-flow-transform="escape_html">title</h2>
+                <a data-simply-field="id" data-simply-transform="comments_link">
+                    <h2 data-simply-field="title" data-simply-transform="escape_html">title</h2>
                 </a>
                 <br>
-                <span data-flow-field="time_ago">time-ago</span> 
-                &bull; by <span data-flow-field="user">user</span> 
+                <span data-simply-field="time_ago">time-ago</span> 
+                &bull; by <span data-simply-field="user">user</span> 
                 &bull; <span class="site">(<span 
-                    data-flow-field="domain">domain</span>)</span>
+                    data-simply-field="domain">domain</span>)</span>
                 <br>
-                <a data-flow-field="id" data-flow-transform="comments_link" class="comments-link">
-                    <input type="hidden" data-flow-field="id">
-                    <span data-flow-field="comments_count">0</span> comments
+                <a data-simply-field="id" data-simply-transform="comments_link" class="comments-link">
+                    <input type="hidden" data-simply-field="id">
+                    <span data-simply-field="comments_count">0</span> comments
                 </a>
-                &bull; <span data-flow-field="points">0</span> points
+                &bull; <span data-simply-field="points">0</span> points
             </li>
         </template>
         </ul>
     </template>
-    <template data-flow-match="item">
+    <template data-simply-match="item">
         <div class="item-view">
-            <a data-flow-field="item.url" data-flow-transform="fixed_content">
-                <h2 data-flow-field="item.title" data-flow-transform="escape_html">Title</h2>
+            <a data-simply-field="item.url" data-simply-transform="fixed_content">
+                <h2 data-simply-field="item.title" data-simply-transform="escape_html">Title</h2>
             </a>
-            (<span data-flow-field="item.domain">domain</span>)
-            <div data-flow-field="item.content"></div>
-            <span data-flow-field="item.points">10</span> points 
-            &bull; by <span data-flow-field="item.user">user</span> 
-            <span data-flow-field="item.time_ago">time-ago</span>
-            <div class="comments root" data-flow-list="item.comments">
+            (<span data-simply-field="item.domain">domain</span>)
+            <div data-simply-field="item.content"></div>
+            <span data-simply-field="item.points">10</span> points 
+            &bull; by <span data-simply-field="item.user">user</span> 
+            <span data-simply-field="item.time_ago">time-ago</span>
+            <div class="comments root" data-simply-list="item.comments">
               <template rel="comment"></template>
             </div>
         </div>
@@ -67,11 +67,11 @@
 <template id="comment">
     <details class="comment" open>
         <summary>
-            <span data-flow-field="user">user</span>
-            <span data-flow-field="time_ago">10</span> minutes ago
-            <div class="content" data-flow-field="content">Content</div>
+            <span data-simply-field="user">user</span>
+            <span data-simply-field="time_ago">10</span> minutes ago
+            <div class="content" data-simply-field="content">Content</div>
         </summary>
-        <div class="comments" data-flow-list="comments">
+        <div class="comments" data-simply-list="comments">
             <template rel="comment"></template>
         </div>
     </details>
@@ -115,6 +115,16 @@ var hnpwa = simply.app({
       this.data.page = 'item'
     }
   },
+  transformers: {
+    comments_link: function(context, next) {
+      let href = ''+context.value
+      if (href.indexOf('#comments')==-1) {
+        href = '#comments/'+href
+      }
+      context.value = { href }
+      next(context)
+    }
+  },
   data: {
     page: 'items',
     items: [],
@@ -132,21 +142,6 @@ var hnpwa = simply.app({
       }
     }
   )
-})
-
-simply.bind({
-  root: hnpwa.data,
-  attribute: 'data-flow',
-  transformers: {
-    comments_link: function(context, next) {
-      let href = ''+context.value
-      if (href.indexOf('#comments')==-1) {
-        href = '#comments/'+href
-      }
-      context.value = { href }
-      next(context)
-    }
-  }
 })
 
 simply.state.effect(() => {

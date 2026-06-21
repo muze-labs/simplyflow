@@ -6,10 +6,10 @@ import { escape_html, fixed_content } from '@muze-labs/simplyflow/bind/transform
 
 Binding transformers are small functions that can alter a binding context before rendering.
 
-They are used through the binding `transformers` option and the `*-transform` attribute.
+They are used through the app or binding `transformers` option and the `*-transform` attribute.
 
 ```html
-<span data-flow-field="comment" data-flow-transform="escape_html"></span>
+<span data-simply-field="comment" data-simply-transform="escape_html"></span>
 ```
 
 ## Transformer signature
@@ -36,8 +36,8 @@ Prevents the bound data from replacing existing `innerHTML` content. This is use
 ## Custom transformers
 
 ```js
-bind({
-  root: data,
+simply.app({
+  data,
   transformers: {
     uppercase(context, next) {
       context.value = String(context.value).toUpperCase()
@@ -48,5 +48,5 @@ bind({
 ```
 
 ```html
-<span data-flow-field="name" data-flow-transform="uppercase"></span>
+<span data-simply-field="name" data-simply-transform="uppercase"></span>
 ```
