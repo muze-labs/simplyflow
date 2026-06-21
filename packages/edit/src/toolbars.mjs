@@ -1,6 +1,6 @@
 import anchor from './anchor.mjs'
-import '../flow.mjs'
-import { html, css } from '../highlight.mjs'
+import '@muze-labs/simplyflow'
+import { html, css } from '@muze-labs/simplyflow/highlight'
 
 
 const simplyToolbarCSS = css`

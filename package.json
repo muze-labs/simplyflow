@@ -3,6 +3,9 @@
   "version": "0.9.0",
   "description": "Reactive browser applications with signals, effects, data binding and an app layer",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "main": "./src/flow.mjs",
   "exports": {
     ".": "./src/flow.mjs",

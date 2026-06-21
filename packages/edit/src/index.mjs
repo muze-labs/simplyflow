@@ -1,5 +1,5 @@
-import toolbars from './edit/toolbars.mjs'
-import '../src/flow.mjs'
+import toolbars from './toolbars.mjs'
+import '@muze-labs/simplyflow'
 
 const editSet = new Set()
 
