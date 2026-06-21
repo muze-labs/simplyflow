@@ -41,6 +41,6 @@ Those split packages are pure ESM and marked side-effect-free. The main `@muze-l
 
 ## Experimental and support modules
 
-- [Edit](edit.md) — experimental editing helper built on top of the app layer.
+- [SimplyEdit](edit.md) — experimental editor application package built on top of SimplyFlow.
 - [Suggest](suggest.md) — typo-suggestion helpers used by developer warnings.
 - [Symbols](symbols.md) — shared internal symbols used by advanced extensions.

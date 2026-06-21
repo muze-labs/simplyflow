@@ -79,11 +79,19 @@ simply.app({
 
 Set `context.replaceValue = true` in `extract` when the extracted value should replace the old value instead of being merged into it. Without this flag, extracted objects are merged into the existing object so ordinary editable object bindings can preserve fields that are not represented by the edited element.
 
-## `escape_html(context, next)`
+## `escape_html`
 
-Escapes HTML special characters before rendering text into `innerHTML`.
+Escapes HTML special characters before rendering a string into normal element content. This is useful because SimplyFlow renders string field values as HTML by default. Use `escape_html` when you want to show HTML source literally.
 
-Characters escaped: `&`, `<`, `>`, `"`, `'`.
+```html
+<pre data-simply-field="body" data-simply-transform="escape_html"></pre>
+```
+
+For `input` and `textarea` elements, `escape_html` leaves the value as plain text because those elements already display their value literally.
+
+`escape_html` also has an extract hook. Editable source-like elements can write escaped DOM text back to the raw HTML string in data.
+
+Characters escaped on render: `&`, `<`, `>`, `"`, `'`.
 
 ## `fixed_content(context, next)`
 

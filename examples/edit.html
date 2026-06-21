@@ -1,31 +1,66 @@
 <!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>simply.edit demo</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            line-height: 1.45;
+            margin: 2rem;
+            max-width: 48rem;
+        }
+        [data-simply-editable] {
+            border: 1px solid transparent;
+            padding: .25rem .5rem;
+        }
+        [data-simply-editable]:hover,
+        .simply-edit-active {
+            border-color: #ea5922;
+            outline: none;
+        }
+        .source-preview {
+            background: #f6f6f6;
+            border: 1px solid #ddd;
+            padding: 1rem;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
 <body>
-<h1>simply.edit demo</h1>
-<div class="editor">
-<h2>A title</h2>
-<p>This is a bit of demo text</p>
-<p>And some more</p>
-</div>
-<h2>Another</h2>
-<div class="editor">
-<h3>A title</h3>
-<p>This is a bit of demo text</p>
-<p>And some more</p>
-</div>
+    <h1>simply.edit demo</h1>
 
-<div data-simply-field="foo">bar</div>
-<script type="importmap">
-{
-    "imports": {
-        "@muze-labs/simplyflow": "../packages/simplyflow/dist/simply.flow.js",
-        "@muze-labs/simplyflow-edit": "../packages/edit/src/index.mjs"
+    <p>
+        Click the editable content, select some text to show the floating toolbar,
+        or press Control+Space to open it at the caret. Escape hides it again.
+        Ctrl+B / Ctrl+I / Ctrl+U also work while editing.
+    </p>
+
+    <main>
+        <h2 data-simply-field="title" data-simply-editable="richtext"></h2>
+        <article data-simply-field="body" data-simply-editable="richtext"></article>
+    </main>
+
+    <h2>Stored HTML</h2>
+    <pre class="source-preview" data-simply-field="body" data-simply-transform="escape_html"></pre>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "@muze-labs/simplyedit": "../packages/simplyedit/dist/simply.edit.js"
+        }
     }
-}
-</script>
-<script type="module">
-	import { edit as simplyEdit } from '@muze-labs/simplyflow-edit'
-	const editor = simplyEdit(document.body)
-	editor.actions.editAll(document.querySelectorAll('.editor'))
-	window.app = editor
-</script>
+    </script>
+    <script type="module">
+        import { edit } from '@muze-labs/simplyedit'
+
+        window.editor = edit({
+            container: document.body,
+            data: {
+                title: 'A small editable page',
+                body: '<p>This is <strong>HTML</strong> stored in app data.</p><p>The visual editor writes HTML back to the same value.</p>'
+            }
+        })
+    </script>
 </body>
+</html>

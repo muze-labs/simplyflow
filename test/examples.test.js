@@ -182,7 +182,7 @@ describe('HNPWA examples', () => {
         continue
       }
 
-      expect(html).not.toMatch(/@muze-labs\/simplyflow-(state|bind|model|app|edit)/)
+      expect(html).not.toMatch(/@muze-labs\/simplyflow-(state|bind|model|app)/)
       expect(html).not.toMatch(/@muze-labs\/simplyflow\/(state|bind|model|app|dom|path|route|commands|actions|behaviors|includes|shortcuts|highlight|render|suggest|symbols)/)
     }
   })

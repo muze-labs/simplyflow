@@ -1,0 +1,34 @@
+{
+  "name": "@muze-labs/simplyedit",
+  "version": "0.1.0",
+  "description": "Experimental SimplyEdit application layer built on SimplyFlow.",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.mjs",
+  "scripts": {
+    "build": "esbuild src/index.mjs --bundle --format=esm --outfile=dist/simply.edit.min.js --minify --sourcemap",
+    "build-dev": "esbuild src/index.mjs --bundle --format=esm --outfile=dist/simply.edit.js"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./editor": "./src/editor.mjs",
+    "./toolbar": "./src/toolbar.mjs",
+    "./selection-anchor": "./src/selection-anchor.mjs",
+    "./engines/html-dom": "./src/engines/html-dom-engine.mjs",
+    "./dist/simply.edit.js": "./dist/simply.edit.js",
+    "./dist/simply.edit.min.js": "./dist/simply.edit.min.js"
+  },
+  "dependencies": {
+    "@muze-labs/simplyflow-app": "0.9.0"
+  },
+  "sideEffects": false,
+  "files": [
+    "src/",
+    "dist/"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muze-labs/simplyflow.git"
+  }
+}

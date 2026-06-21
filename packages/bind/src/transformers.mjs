@@ -1,20 +1,52 @@
 import { trackDomField } from './dom.mjs'
 
-export function escape_html(context, next) {
-    let content = context.value?.innerHTML
-    if (typeof context.value == 'string') {
-        content = context.value
-        context.value = { innerHTML: content }
+export const escape_html = {
+    render(context, next) {
+        if (typeof context.value !== 'string') {
+            return next(context)
+        }
+        if (usesValueProperty(context.element)) {
+            context.value = { value: context.value }
+        } else {
+            context.value = { innerHTML: escapeHTML(context.value) }
+        }
+        return next(context)
+    },
+
+    extract(context, next) {
+        if (typeof context.value === 'string') {
+            context.value = unescapeHTML(context.value)
+        } else if (context.value && typeof context.value === 'object') {
+            if (typeof context.value.innerHTML === 'string') {
+                context.value = unescapeHTML(context.value.innerHTML)
+            } else if (typeof context.value.value === 'string') {
+                context.value = context.value.value
+            }
+        }
+        return next(context)
     }
-    if (content) {
-        content = content.replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#39;');
-        context.value.innerHTML = content
-    }
-    next(context)
+}
+
+function usesValueProperty(element)
+{
+    return element?.tagName === 'INPUT' || element?.tagName === 'TEXTAREA'
+}
+
+function escapeHTML(value)
+{
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
+function unescapeHTML(value)
+{
+    const textarea = document.createElement('textarea')
+    textarea.innerHTML = value
+    return textarea.value
 }
 
 export function fixed_content(context, next) {

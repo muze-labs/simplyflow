@@ -85,7 +85,7 @@ The split is intentionally conservative: tightly coupled binding internals such 
 
 **Status:** Done
 
-**Decision:** The HNPWA and datagrid examples now map only `@muze-labs/simplyflow` to `packages/simplyflow/dist/simply.flow.js` plus the external libraries they directly use, such as Metro. This deliberately trades tree-shaking for a simpler no-build learning path. The experimental edit demo is the exception because it demonstrates the separate `@muze-labs/simplyflow-edit` package. The tree-shakeable path remains documented through `@muze-labs/simplyflow/state`, `@muze-labs/simplyflow/bind`, `@muze-labs/simplyflow/model`, and the direct split packages.
+**Decision:** The HNPWA and datagrid examples now map only `@muze-labs/simplyflow` to `packages/simplyflow/dist/simply.flow.js` plus the external libraries they directly use, such as Metro. This deliberately trades tree-shaking for a simpler no-build learning path. The edit demo is the exception because it demonstrates the separate `@muze-labs/simplyedit` package. The tree-shakeable path remains documented through `@muze-labs/simplyflow/state`, `@muze-labs/simplyflow/bind`, `@muze-labs/simplyflow/model`, and the direct split packages.
 
 
 ### 1c. Keep beginner examples on the app-level API
@@ -190,4 +190,23 @@ where simple data editing is enough, and avoids supporting both `hidden` and
 
 The built-in `attributes` transformer renders and extracts selected HTML attributes without replacing an element's content. This covers RDFa/semantic-attribute style templates needed by a future SimplyEdit replacement while keeping the feature as an opt-in transformer rather than a new beginner-facing binding concept.
 
+The built-in `escape_html` transformer is reversible too. This keeps SimplyFlow's default HTML-string rendering intact, while giving source views and literal previews an explicit opt-in escape hatch.
+
 **Status:** Done
+
+### Build SimplyEdit as a separate application layer
+
+**Principle:** Keep SimplyFlow small and general; build editor-specific behavior as a separate package on top.
+
+**Decision:** The first `@muze-labs/simplyedit` package now treats HTML strings as the canonical rich-text data format. It mounts contenteditable editing sessions on elements marked with `data-simply-editable`, writes changed HTML back to `app.data`, and renders a floating toolbar with SimplyFlow.
+
+The editing engine is behind a small session adapter (`mount`, `execute`, `query`, `getHTML`, `setHTML`, `destroy`) so the initial DOM/contenteditable engine can later be replaced by a Cobalt-backed engine or another mature editor without coupling the toolbar to that engine.
+
+**Status:** Started
+
+
+### SimplyEdit toolbar interaction model
+
+**Principle:** Keep the editing UI discoverable without letting application-specific behavior leak into SimplyFlow.
+
+**Decision:** The SimplyEdit toolbar is owned by `@muze-labs/simplyedit`, not the core SimplyFlow packages. Editing fields activate on focus/click, but the toolbar only appears when the user has selected text or explicitly asks for the toolbar with `Control+Space`. `Escape` hides the toolbar. The toolbar uses the original visible cursor anchor approach and supports expandable subtoolbars for commands such as links.

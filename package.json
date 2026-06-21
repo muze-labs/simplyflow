@@ -8,8 +8,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm --workspace @muze-labs/simplyflow run build",
-    "build-dev": "npm --workspace @muze-labs/simplyflow run build-dev",
+    "build": "npm --workspace @muze-labs/simplyflow run build && npm --workspace @muze-labs/simplyedit run build",
+    "build-dev": "npm --workspace @muze-labs/simplyflow run build-dev && npm --workspace @muze-labs/simplyedit run build-dev",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
     "dev": "watch 'npm run build-dev' ./packages & npx http-server ."
   },
