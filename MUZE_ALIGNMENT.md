@@ -96,11 +96,13 @@ The split is intentionally conservative: tightly coupled binding internals such 
 
 **Why it matters:** Beginners should learn one coherent path first: create an app, put data in `app.data`, and use `data-simply-*` attributes. Dropping to `bind()` early makes the app API look incomplete and exposes lower-level binding details before they are needed.
 
-**Suggested direction:** Beginner examples should use `data-simply-field`, `data-simply-list`, `data-simply-map`, and `data-simply-transform`; they should pass data and custom transformers to `simply.app()` and let the app's default binding run automatically. Lower-level `bind()` examples remain useful in advanced/reference documentation.
+**Suggested direction:** Beginner examples should use `data-simply-field`, `data-simply-edit`, `data-simply-list`, and `data-simply-transform`; they should pass data and custom transformers to `simply.app()` and let the app's default binding run automatically. Lower-level `bind()` examples, including keyed `data-simply-map` examples, remain useful in advanced/reference documentation.
 
 **Status:** Done
 
 **Decision:** The beginner-facing examples now use `data-simply-*` attributes and `simply.app({ data, transformers })`. The app constructor forwards `transformers` to its default binding, so examples no longer need a separate `simply.bind()` call just to configure custom binding transforms.
+
+Beginner documentation now treats `data-simply-list` as the normal collection concept and avoids introducing `data-simply-map` there. The reference documentation keeps `data-simply-map`, but defines it specifically as keyed-object rendering. This avoids making object/list behavior mysterious for linked data, where a single object may simply mean “one value”.
 
 ### 2. Clarify relationship to SimplyView and Muze projects
 

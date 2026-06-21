@@ -36,6 +36,8 @@ Inside the template, paths start at the current dragon. So this:
 
 means the current dragon’s `name`.
 
+`data-simply-list` also works when the value is a single item instead of an array. That is useful for data sources where a property may contain one value or many values. A single dragon is rendered as a one-item list; an array of dragons renders one row per dragon.
+
 ## Use the current item in a command
 
 Add a button to visit a dragon:

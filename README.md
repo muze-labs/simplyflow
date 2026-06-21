@@ -51,6 +51,8 @@ Buttons inside list templates can pass the current item or one of its fields to 
 </ul>
 ```
 
+`data-simply-list` is intentionally one-or-many friendly: if `todos` is an array, it renders every item; if it is a single value, it renders one item; if it is empty, it renders nothing. This keeps linked-data style values usable when a property may contain either one value or many values.
+
 Custom top-level options become app properties, so you can add services without extra ceremony:
 
 ```javascript

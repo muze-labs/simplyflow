@@ -43,7 +43,7 @@ Now add more fields to the HTML:
 </section>
 ```
 
-`data-simply-field` is for showing data. When the data changes, the field changes.
+`data-simply-field` is for showing one value. When the data changes, the field changes. If the value is an array, the field shows the first item.
 
 ```js
 sanctuary.data.dragon.room = 'Moonlit Library'

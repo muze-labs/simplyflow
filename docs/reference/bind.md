@@ -42,8 +42,8 @@ With the default `data-flow` prefix:
 | --- | --- |
 | `data-flow-field="path"` | Render data at `path`. One-way. |
 | `data-flow-edit="path"` | Render and edit data at `path`. |
-| `data-flow-list="path"` | Render an array using child templates. |
-| `data-flow-map="path"` | Render an object/map-like value using child templates. |
+| `data-flow-list="path"` | Render zero, one, or many values using child templates. Arrays render each item; single values render as one item. |
+| `data-flow-map="path"` | Render a keyed object collection using child templates. |
 | `data-flow-transform="name"` | Run a named transformer. Multiple names are separated by spaces. |
 
 `app()` uses the same attributes with the `data-simply` prefix.
@@ -55,7 +55,7 @@ With the default `data-flow` prefix:
 <input data-flow-edit="person.name">
 ```
 
-`data-flow-field` is one-way. `data-flow-edit` updates the bound data when the user edits supported form controls.
+`data-flow-field` is one-way. It renders a single value. If the value is an array, it renders the first item. `data-flow-edit` updates the bound data when the user edits supported form controls.
 
 ## Lists
 
@@ -70,19 +70,21 @@ With the default `data-flow` prefix:
 </ul>
 ```
 
+`data-flow-list` accepts arrays and single values. Arrays render one item per array element. A single object or scalar renders as a one-item list. `null` and `undefined` render no items. This is useful for linked-data style properties where the same field may contain one value or many values.
+
 Inside a list template, relative paths are resolved against the current item. Special paths include:
 
 | Path | Meaning |
 | --- | --- |
 | `:value` | Current item. |
-| `:key` | Current array index or object/map key. |
+| `:key` | Current array index or keyed collection key. |
 | `:root.path` | Path from the root data object. |
 | `:empty` | Template used when a list/map is empty. |
 | `:notempty` | Template used when a list/map is not empty. |
 
 ## Maps
 
-`data-flow-map` renders object entries with templates. The current key is available through `:key` and the current value through `:value`.
+`data-flow-map` is for keyed object collections: objects where the property names identify the rendered items. It does not mean “render any object as many rows”; plain objects passed to `data-flow-list` are treated as single values. In a map template, the current key is available through `:key` and the current value through `:value`.
 
 ## Transformers
 

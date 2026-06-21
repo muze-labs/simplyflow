@@ -25,7 +25,7 @@ Those split packages are pure ESM and marked side-effect-free. The main `@muze-l
 
 ## Data, rendering and advanced modules
 
-- [Binding](bind.md) — lower-level DOM/data binding: fields, edit fields, lists, maps, renderers, transformers, and tracing.
+- [Binding](bind.md) — lower-level DOM/data binding: fields, edit fields, one-or-many lists, keyed maps, renderers, transformers, and tracing.
 - [Binding renderers](bind-render.md) — renderer functions used by the binding module.
 - [Binding transformers](bind-transformers.md) — built-in binding transformers.
 - [State](state.md) — signals, effects, batching, custom signals, cloning, and low-level reactive primitives.

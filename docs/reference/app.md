@@ -149,8 +149,8 @@ The app API uses `data-simply-*` attributes. The most common ones are:
 | --- | --- |
 | `data-simply-field="path"` | Shows data at `path`. One-way. |
 | `data-simply-edit="path"` | Shows and edits data at `path`. |
-| `data-simply-list="path"` | Repeats a template for an array. |
-| `data-simply-map="path"` | Repeats a template for an object or map-like value. |
+| `data-simply-list="path"` | Repeats a template for zero, one, or many values. Arrays render each item; single values render as one item. |
+| `data-simply-map="path"` | Repeats a template for a keyed object collection. |
 | `data-simply-command="name"` | Calls a command. |
 | `data-simply-value="value"` | Passes a value to a command. Supports dynamic values in templates. |
 | `data-simply-behavior="name"` | Starts a named behavior on an element. |
@@ -159,7 +159,7 @@ The app API uses `data-simply-*` attributes. The most common ones are:
 
 ## Editable fields
 
-`data-simply-field` is one-way. Use `data-simply-edit` when user edits should update `app.data`.
+`data-simply-field` is one-way. It renders a single value. If the value is an array, it renders the first item. Use `data-simply-edit` when user edits should update `app.data`.
 
 ```html
 <input data-simply-edit="person.name">
@@ -167,3 +167,20 @@ The app API uses `data-simply-*` attributes. The most common ones are:
 ```
 
 Supported edit behavior includes text inputs, textareas, selects, multiple selects, checkbox booleans, checkbox arrays and radio groups.
+
+## Lists and keyed collections
+
+`data-simply-list` is designed for data where a property may contain either one value or many values. This is common with linked data. If the value is an array, SimplyFlow renders every item. If the value is a single object or scalar, SimplyFlow renders it as a one-item list. If the value is `null` or `undefined`, it renders nothing.
+
+Use `data-simply-map` only when the object itself is a keyed collection and the property names identify the items:
+
+```js
+{
+  people: {
+    ada: { name: 'Ada' },
+    grace: { name: 'Grace' }
+  }
+}
+```
+
+In that case, `:key` is the object key and `:value` is the item value.

@@ -74,7 +74,7 @@ Supported dynamic values:
 | --- | --- |
 | `:value` | Current list/map item. |
 | `:value.name` | Property of the current item. |
-| `:key` | Current array index or object/map key. |
+| `:key` | Current array index or keyed collection key. |
 | `:root.path` | Value from the app data root. |
 
 SimplyFlow may generate internal attributes such as `data-simply-value-path` while rendering templates. Do not write these by hand.

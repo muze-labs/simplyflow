@@ -25,15 +25,15 @@ Common context fields:
 
 ### `field(context)`
 
-Renders a field binding. If the element contains templates, it renders with template matching. Otherwise it uses an element-specific renderer based on tag name.
+Renders a field binding. Field bindings render one value; array values render their first item. If the element contains templates, it renders with template matching. Otherwise it uses an element-specific renderer based on tag name.
 
 ### `list(context)`
 
-Renders an array value into templates. Supports `:empty` and `:notempty` templates. Uses keyed DOM reuse for existing rendered items.
+Renders zero, one, or many values into templates. Arrays render each item, single values render as one item, and `null`/`undefined` render no items. Supports `:empty` and `:notempty` templates. Uses keyed DOM reuse for existing rendered items.
 
 ### `map(context)`
 
-Renders object/map-like values into templates.
+Renders keyed object collections into templates. Object property names become `:key`; property values become `:value`.
 
 ## Element renderers
 
@@ -52,8 +52,8 @@ Renders object/map-like values into templates.
 
 | Function | Description |
 | --- | --- |
-| `arrayByTemplates(context)` | Renders an array by applying templates to each item. |
-| `objectByTemplates(context)` | Renders an object by applying templates to each entry. |
+| `arrayByTemplates(context)` | Renders array items, or wraps a single non-null value as one item. |
+| `objectByTemplates(context)` | Renders a keyed object collection by applying templates to each entry. |
 | `fieldByTemplates(context)` | Renders a single field using a matching template. |
 
 ## Property helpers
