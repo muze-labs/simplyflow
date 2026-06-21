@@ -209,12 +209,33 @@ export function columns(options={}) {
 	}
 	return function(data) {
 		this.state.options.columns = columnOptions
+		const projections = new WeakMap()
 		return throttledEffect(() => {
 			return data.current.map(input => {
-				let result = {}
+				const source = raw(input)
+				let result = source && typeof source === 'object'
+					? projections.get(source)
+					: null
+				if (!result) {
+					result = {}
+					if (source && typeof source === 'object') {
+						projections.set(source, result)
+					}
+				}
+
+				const visible = new Set()
 				for (let key of Object.keys(this.state.options.columns)) {
 					if (!this.state.options.columns[key]?.hidden) {
-						result[key] = input[key] ?? null
+						visible.add(key)
+						const value = input?.[key] ?? null
+						if (result[key] !== value) {
+							result[key] = value
+						}
+					}
+				}
+				for (let key of Object.keys(result)) {
+					if (!visible.has(key)) {
+						delete result[key]
 					}
 				}
 				return result

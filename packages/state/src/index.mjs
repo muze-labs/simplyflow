@@ -922,7 +922,6 @@ export function throttledEffect(fn, throttleTime) {
         runTracked(compute, connectedSignal, fn, throttledEffect)
         hasChange = false
         throttledUntil = Date.now() + throttleTime
-        schedule()
     }
 
     function schedule() {

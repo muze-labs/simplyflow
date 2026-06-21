@@ -666,7 +666,6 @@
       runTracked(compute, connectedSignal, fn, throttledEffect);
       hasChange = false;
       throttledUntil = Date.now() + throttleTime;
-      schedule();
     };
     function schedule() {
       if (timeout) {
@@ -2272,12 +2271,30 @@
     }
     return function(data) {
       this.state.options.columns = columnOptions;
+      const projections = /* @__PURE__ */ new WeakMap();
       return throttledEffect(() => {
         return data.current.map((input2) => {
-          let result = {};
+          const source = raw(input2);
+          let result = source && typeof source === "object" ? projections.get(source) : null;
+          if (!result) {
+            result = {};
+            if (source && typeof source === "object") {
+              projections.set(source, result);
+            }
+          }
+          const visible = /* @__PURE__ */ new Set();
           for (let key of Object.keys(this.state.options.columns)) {
             if (!this.state.options.columns[key]?.hidden) {
-              result[key] = input2[key] ?? null;
+              visible.add(key);
+              const value = input2?.[key] ?? null;
+              if (result[key] !== value) {
+                result[key] = value;
+              }
+            }
+          }
+          for (let key of Object.keys(result)) {
+            if (!visible.has(key)) {
+              delete result[key];
             }
           }
           return result;

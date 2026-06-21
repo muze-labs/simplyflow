@@ -486,6 +486,28 @@ describe('effects', () => {
 		}
 	})
 
+	it('throttledEffect does not schedule an idle timeout after the initial run', () => {
+		jest.useFakeTimers()
+		try {
+			const setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout')
+			const state = signal({ value: 1 })
+			const throttled = throttledEffect(() => state.value, 10)
+
+			expect(throttled.current).toBe(1)
+			expect(setTimeoutSpy).not.toHaveBeenCalled()
+
+			state.value = 2
+			expect(setTimeoutSpy).toHaveBeenCalledTimes(1)
+			expect(throttled.current).toBe(1)
+
+			jest.advanceTimersByTime(10)
+			expect(throttled.current).toBe(2)
+		} finally {
+			jest.restoreAllMocks()
+			jest.useRealTimers()
+		}
+	})
+
 	it('clockEffect', () => {
 		let foo = signal({value: 1})
 		let count = 0

@@ -240,6 +240,44 @@ describe('model API contract coverage', () => {
     ])
   })
 
+  it('keeps projected row identity stable when column visibility changes', async () => {
+    const m = model({
+      data: [
+        { id: 1, name: 'Ada', internal: 'x' },
+        { id: 2, name: 'Grace', internal: 'y' }
+      ]
+    })
+
+    m.addEffect(columns({
+      id: {},
+      name: {},
+      internal: { hidden: true }
+    }))
+
+    const firstProjection = m.view.current[0]
+    const secondProjection = m.view.current[1]
+
+    m.state.options.columns.internal.hidden = false
+    await wait()
+
+    expect(m.view.current[0]).toBe(firstProjection)
+    expect(m.view.current[1]).toBe(secondProjection)
+    expect(m.view.current).toEqual([
+      { id: 1, name: 'Ada', internal: 'x' },
+      { id: 2, name: 'Grace', internal: 'y' }
+    ])
+
+    m.state.options.columns.name.hidden = true
+    await wait()
+
+    expect(m.view.current[0]).toBe(firstProjection)
+    expect(m.view.current[1]).toBe(secondProjection)
+    expect(m.view.current).toEqual([
+      { id: 1, internal: 'x' },
+      { id: 2, internal: 'y' }
+    ])
+  })
+
   it('rejects invalid column configurations', () => {
     expect(() => columns()).toThrow('columns requires options to be an object with at least one property')
     expect(() => columns(null)).toThrow('columns requires options to be an object with at least one property')
