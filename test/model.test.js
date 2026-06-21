@@ -6,7 +6,7 @@ const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 
 describe("model", () => {
   // Missing test for when provided modal data object does not contain expected property: 'data'
-  // see: https://github.com/SimplyEdit/simplyflow/blob/main/docs/model.md#setting-the-model-up
+  // see: https://github.com/muze-labs/simplyflow/blob/main/docs/model.md#setting-the-model-up
 
   it("contains view.current after initiation", () => {
     // Given - a bit of test data

@@ -17,7 +17,7 @@ The main idea is simple:
 The tutorials use the browser bundle from a CDN. Put this line in the `<head>` of your HTML page:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/simplyflow/dist/simply.flow.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@muze-labs/simplyflow/dist/simply.flow.js"></script>
 ```
 
 After that, `simply.app()` is available in your page scripts.

@@ -10,10 +10,10 @@ import simply, {
   commands,
   actions,
   routes
-} from './src/flow.mjs'
+} from '@muze-labs/simplyflow'
 ```
 
-`src/flow.mjs` is the main package entry point. It exports the public modules and initializes the browser global API when used through the bundled script.
+`@muze-labs/simplyflow` is the main package entry point. It exports the public modules and initializes the browser global API when used through the bundled script.
 
 ## Named exports
 

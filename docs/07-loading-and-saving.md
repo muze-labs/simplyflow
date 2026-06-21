@@ -5,7 +5,7 @@ The sanctuary roster can start in a file or come from an API.
 This chapter uses Metro, a small helper library for calling APIs. Add it to the page after SimplyFlow:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/simplyflow/dist/simply.flow.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@muze-labs/simplyflow/dist/simply.flow.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@muze-nl/metro/dist/everything.js"></script>
 ```
 

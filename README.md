@@ -5,7 +5,7 @@ SimplyFlow is an experimental browser library for building small reactive web ap
 The intended beginner-facing API is:
 
 ```javascript
-import { app } from 'simplyflow/src/flow.mjs'
+import { app } from '@muze-labs/simplyflow'
 
 const counter = app({
   container: document.getElementById('counter'),
@@ -108,19 +108,19 @@ const notes = simply.app({
 ## Install
 
 ```shell
-npm install simplyflow
+npm install @muze-labs/simplyflow
 ```
 
 or using Git:
 
 ```shell
-git clone https://github.com/SimplyEdit/simplyflow.git
+git clone https://github.com/muze-labs/simplyflow.git
 ```
 
 ## Browser bundle
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/simplyflow/dist/simply.flow.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@muze-labs/simplyflow/dist/simply.flow.js"></script>
 ```
 
 Then use the beginner-facing `simply.app()` API:
@@ -162,9 +162,9 @@ const page = simply.app({
 Module imports are still available when you prefer explicit imports:
 
 ```javascript
-import { signal, effect, batch } from 'simplyflow/src/state.mjs'
-import { bind } from 'simplyflow/src/bind.mjs'
-import { model, paging, sort, filter, columns } from 'simplyflow/src/model.mjs'
+import { signal, effect, batch } from '@muze-labs/simplyflow/state'
+import { bind } from '@muze-labs/simplyflow/bind'
+import { model, paging, sort, filter, columns } from '@muze-labs/simplyflow/model'
 
 const data = signal({ title: 'Hello' })
 bind({ root: data })

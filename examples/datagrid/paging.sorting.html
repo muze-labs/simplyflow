@@ -7,7 +7,9 @@
 <script type="importmap">
 	{
 		"imports": {
-			"simplyflow/": "../../"
+			"@muze-labs/simplyflow/state": "../../src/state.mjs",
+			"@muze-labs/simplyflow/bind": "../../src/bind.mjs",
+			"@muze-labs/simplyflow/model": "../../src/model.mjs"
 		}
 	}
 </script>
@@ -53,9 +55,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/simplyview/dist/simply.everything.js"></script>
 <script class="source" type="module">
-	import {signal, effect, batch} from 'simplyflow/src/state.mjs'
-	import {bind} from 'simplyflow/src/bind.mjs'
-	import {model, paging, sort, filter, columns} from 'simplyflow/src/model.mjs'
+	import {signal, effect, batch} from '@muze-labs/simplyflow/state'
+	import {bind} from '@muze-labs/simplyflow/bind'
+	import {model, paging, sort, filter, columns} from '@muze-labs/simplyflow/model'
 	
 	// generate a random list of numbers
 	const data = []

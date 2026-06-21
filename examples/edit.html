@@ -15,9 +15,17 @@
 
 <div data-simply-field="foo">bar</div>
 <script src="https://cdn.jsdelivr.net/npm/simplyview@3.5.9/dist/simply.everything.js"></script>
-<script src="../dist/simplyflow.mjs"></script>
+<script type="importmap">
+  {
+    "imports": {
+      "@muze-labs/simplyflow": "../src/flow.mjs",
+      "@muze-labs/simplyflow/highlight": "../src/highlight.mjs",
+      "@muze-labs/simplyflow-edit": "../packages/edit/src/index.mjs"
+    }
+  }
+</script>
 <script type="module">
-	import { edit as simplyEdit } from '../src/edit.mjs'
+	import { edit as simplyEdit } from '@muze-labs/simplyflow-edit'
 	const editor = simplyEdit(document.body)
 	editor.actions.editAll(document.querySelectorAll('.editor'))
 	window.app = editor

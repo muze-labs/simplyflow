@@ -1,7 +1,7 @@
 # Model module
 
 ```js
-import { model } from './src/flow.mjs'
+import * as model from '@muze-labs/simplyflow/model'
 ```
 
 The model module creates reactive data-view pipelines. It is useful for tables and lists that need sorting, filtering, paging or virtual scrolling.
@@ -17,7 +17,7 @@ const table = model.model({
 })
 ```
 
-When imported from `flow.mjs`, `model` is a namespace. In the browser global, `simply.model` is callable and also has helper methods:
+When imported from `@muze-labs/simplyflow/model` as a namespace, `model` contains the model constructor and helper factories. In the browser global, `simply.model` is callable and also has helper methods:
 
 ```js
 const table = simply.model({ data: [] })

@@ -1,7 +1,7 @@
 # State module
 
 ```js
-import * as state from './src/state.mjs'
+import * as state from '@muze-labs/simplyflow/state'
 ```
 
 The state module contains SimplyFlow's reactive engine: signals, effects, batching and custom signal support.

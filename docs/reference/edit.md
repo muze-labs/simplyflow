@@ -1,10 +1,10 @@
-# Edit module
+# Edit package
 
 ```js
-import { edit } from './src/edit.mjs'
+import { edit } from '@muze-labs/simplyflow-edit'
 ```
 
-The edit module is experimental. It builds an editing application on top of SimplyFlow's app, state and binding APIs.
+The edit package is experimental and lives outside the core `@muze-labs/simplyflow` package. It builds an editing application on top of SimplyFlow's app, state and binding APIs.
 
 ## `edit(rootElement)`
 
@@ -18,4 +18,4 @@ Current behavior includes actions for enabling/disabling `contenteditable`, edit
 
 ## Stability
 
-This module is not part of the beginner-facing application API and still contains experimental editor-specific assumptions. Treat it as a work-in-progress example of building a larger app layer on top of SimplyFlow rather than a stable reference API.
+This package is not part of the beginner-facing application API and still contains experimental editor-specific assumptions. Treat it as a work-in-progress example of building a larger app layer on top of SimplyFlow rather than a stable reference API.

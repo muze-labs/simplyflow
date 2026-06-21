@@ -1,7 +1,7 @@
 # App module
 
 ```js
-import { app } from './src/flow.mjs'
+import { app } from '@muze-labs/simplyflow'
 // or with the browser bundle:
 const myApp = simply.app(options)
 ```

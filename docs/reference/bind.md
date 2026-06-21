@@ -1,7 +1,7 @@
 # Bind module
 
 ```js
-import { bind } from './src/bind.mjs'
+import { bind } from '@muze-labs/simplyflow/bind'
 ```
 
 `bind()` is the lower-level DOM/data binding API. `app()` uses it internally with the `data-simply-*` attribute prefix. The lower-level default prefix is `data-flow-*`.
