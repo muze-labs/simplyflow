@@ -205,7 +205,7 @@ export function trackDomList(element)
  * @param HTMLElement element - the element to track
  * @returns Proxy
  */
-export function trackDomField(element, props, valueIsString, stringProperty = 'innerHTML', getUpdateValue) {
+export function trackDomField(element, props, valueIsString, stringProperty = 'innerHTML', getUpdateValue, context) {
     if (domSignals.has(element)) {
         return
     }
@@ -215,7 +215,6 @@ export function trackDomField(element, props, valueIsString, stringProperty = 'i
     }
     const s = signal(element)
     domSignals.set(element, s)
-    //TODO: run reverse transformers (extract)
     batch(() => { // avoids cyclical dependencies - check why
         throttledEffect(() => {
             let updateValue
@@ -245,11 +244,15 @@ export function trackDomField(element, props, valueIsString, stringProperty = 'i
                 if (typeof updateValue === 'undefined') {
                     return
                 }
+                updateValue = this.extractValue?.(context, updateValue, currentValue) ?? updateValue
+                if (typeof updateValue === 'undefined') {
+                    return
+                }
                 if (valueIsString && !Object.is(currentValue, updateValue) && String(currentValue) === updateValue) {
                     return
                 }
                 // don't trigger this effect when the data changes (root.path)
-                setValueByPath(this.options.root, path, updateValue)
+                setValueByPath(this.options.root, path, updateValue, { replace: context?.replaceValue })
             })
         }, 50)
     })

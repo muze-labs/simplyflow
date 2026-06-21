@@ -45,6 +45,7 @@ With the default `data-flow` prefix:
 | `data-flow-list="path"` | Render zero, one, or many values using child templates. Arrays render each item; single values render as one item. |
 | `data-flow-map="path"` | Render a keyed object collection using child templates. |
 | `data-flow-transform="name"` | Run a named transformer. Multiple names are separated by spaces. |
+| `data-flow-attributes="name ..."` | Attribute names used by the built-in `attributes` transformer. |
 
 `app()` uses the same attributes with the `data-simply` prefix.
 
@@ -94,8 +95,11 @@ Built-in transformers:
 | --- | --- |
 | `escape_html` | Escapes HTML-special characters before rendering. |
 | `fixed_content` | Prevents replacing content when an element already has fixed content. |
+| `attributes` | Renders and extracts selected HTML attributes without replacing the element's content. |
 
-Custom transformers receive `(context, next)` and are called with `this` set to the binding instance. A transformer can change the context and call `next(context)`.
+Custom transformers can be render-only functions or objects with `render` and `extract` functions. The `extract` function is used by `data-flow-edit` / `data-simply-edit` when DOM state is written back to data. Set `context.replaceValue = true` inside `extract` when the extracted value should replace the existing value instead of being merged into it.
+
+See [Binding transformers](bind-transformers.md) for details.
 
 ## Instance methods/properties
 

@@ -81,6 +81,88 @@ describe('app API', () => {
     testApp.destroy()
   })
 
+  it('uses transformer extract hooks for editable fields', async () => {
+    document.body.innerHTML = `<div id="app">
+      <select data-simply-edit="type" data-simply-transform="selectedObjectKey">
+        <option value="article">Article</option>
+        <option value="note">Note</option>
+      </select>
+    </div>`
+    const container = document.getElementById('app')
+    const testApp = app({
+      container,
+      data: {
+        type: {
+          note: {
+            label: 'Existing note'
+          }
+        }
+      },
+      transformers: {
+        selectedObjectKey: {
+          render(context, next) {
+            context.value = Object.keys(context.value || {})[0] || ''
+            return next(context)
+          },
+          extract(context, next) {
+            context.value = {
+              [context.value]: context.currentValue?.[context.value] || {}
+            }
+            context.replaceValue = true
+            return next(context)
+          }
+        }
+      }
+    })
+
+    await wait()
+    const select = container.querySelector('select')
+    expect(select.value).toBe('note')
+
+    select.value = 'article'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+    await wait()
+    expect(Object.keys(testApp.data.type)).toEqual(['article'])
+
+    testApp.destroy()
+  })
+
+  it('uses the attributes transformer for attributes-only editing', async () => {
+    document.body.innerHTML = `<div id="app">
+      <h1 data-simply-edit="subject" data-simply-transform="attributes" data-simply-attributes="about property typeof">Visible title</h1>
+    </div>`
+    const container = document.getElementById('app')
+    const testApp = app({
+      container,
+      data: {
+        subject: {
+          about: '#thing',
+          property: 'schema:name',
+          typeof: 'schema:Thing',
+          ignored: 'not-rendered'
+        }
+      }
+    })
+
+    await wait()
+    const heading = container.querySelector('h1')
+    expect(heading.innerHTML).toBe('Visible title')
+    expect(heading.getAttribute('about')).toBe('#thing')
+    expect(heading.getAttribute('property')).toBe('schema:name')
+    expect(heading.getAttribute('typeof')).toBe('schema:Thing')
+    expect(heading.hasAttribute('ignored')).toBe(false)
+
+    heading.setAttribute('property', 'schema:headline')
+    await wait()
+    expect(testApp.data.subject).toEqual({
+      about: '#thing',
+      property: 'schema:headline',
+      typeof: 'schema:Thing'
+    })
+
+    testApp.destroy()
+  })
+
   it('uses data-simply-edit for editable fields', async () => {
     document.body.innerHTML = `<div id="app"><input data-simply-edit="name"><textarea data-simply-edit="note"></textarea></div>`
     const container = document.getElementById('app')

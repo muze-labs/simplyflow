@@ -181,3 +181,13 @@ the UI use explicit `visible: true` / `visible: false` booleans and bind
 checkboxes with `data-simply-edit`. This keeps beginner examples command-free
 where simple data editing is enough, and avoids supporting both `hidden` and
 `visible` for the same concept.
+
+### Add reversible binding transformers and attributes-only rendering
+
+**Principle:** Keep the core binding layer small, but make it expressive enough for editor packages to compose on top.
+
+**Decision:** SimplyFlow binding transformers now support separate `render` and `extract` hooks. Existing function transformers remain render-only. Editable bindings (`data-simply-edit` / `data-flow-edit`) run extract hooks before writing DOM values back to data, so editor-oriented packages can keep a clean stored data shape without adding CMS-specific behavior to the binding core.
+
+The built-in `attributes` transformer renders and extracts selected HTML attributes without replacing an element's content. This covers RDFa/semantic-attribute style templates needed by a future SimplyEdit replacement while keeping the feature as an opt-in transformer rather than a new beginner-facing binding concept.
+
+**Status:** Done

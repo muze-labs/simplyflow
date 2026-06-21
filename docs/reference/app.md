@@ -108,6 +108,8 @@ The app object is also available as `this` inside commands, actions, behaviors, 
 
 Pass custom binding transformers through the app constructor. The app's default binding uses them automatically with `data-simply-transform`:
 
+Transformers may be render-only functions, or objects with `render` and `extract` hooks when editable fields need to convert DOM values back to a different data shape.
+
 ```html
 <a data-simply-field="story.id" data-simply-transform="storyLink">
   <span data-simply-field="story.title"></span>

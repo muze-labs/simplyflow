@@ -1,5 +1,5 @@
 import { throttledEffect, destroy } from '@muze-labs/simplyflow-state'
-import { escape_html, fixed_content } from './transformers.mjs'
+import { escape_html, fixed_content, attributes } from './transformers.mjs'
 import * as render from './render.mjs'
 import { DEP } from '@muze-labs/simplyflow-state/symbols'
 
@@ -32,7 +32,8 @@ class SimplyBind
 
         const defaultTransformers = {
                 escape_html,
-                fixed_content
+                fixed_content,
+                attributes
         }
         const defaultOptions = {
             container: document.body,
@@ -63,10 +64,11 @@ class SimplyBind
         this.options = Object.assign({}, defaultOptions, options)
         if (options.transformers) {
             this.options.transformers = Object.assign({}, defaultTransformers, options?.transformers)
+        } else {
+            this.options.transformers = defaultTransformers
         }
         const attribute      = this.options.attribute
         const bindAttributes = [attribute+'-field',attribute+'-edit',attribute+'-list',attribute+'-map']
-        const transformAttribute = attribute+'-transform'
 
         const getBindingAttribute = (el) => {
             const foundAttribute = bindAttributes.find(attr => el.hasAttribute(attr))
@@ -106,7 +108,7 @@ class SimplyBind
             }, 50))
         }
 
-        // finds and runs applicable transformers
+        // finds and runs applicable render transformers
         // creates a stack of transformers, calls the topmost
         // each transformer can opt to call the next or not
         // transformers should return the context object (possibly altered)
@@ -127,26 +129,10 @@ class SimplyBind
                     throw new Error('no valid context attribute specified',context)
                     break
             }
-            if (context.element.hasAttribute(transformAttribute)) {
-                context.element.getAttribute(transformAttribute)
-                    .split(' ').filter(Boolean)
-                    .forEach(t => {
-                        if (this.options.transformers[t]) {
-                            transformers.push(this.options.transformers[t])
-                        } else {
-                            console.warn('No transformer with name '+t+' configured', {cause:context.element})
-                        }
-                    })
-            }
-            let next
-            for (let transformer of transformers) {
-                next = ((next, transformer) => {
-                    return (context) => {
-                        return transformer.call(this, context, next)
-                    }
-                })(next, transformer)
-            }
-            next(context)
+            transformers.push(...this.getNamedTransformers(context.element)
+                .map(transformer => getTransformerPhase(transformer, 'render'))
+                .filter(Boolean))
+            runTransformerStack.call(this, transformers, context)
         }
 
         // given a set of elements with data bind attribute
@@ -340,6 +326,49 @@ class SimplyBind
         }
     }
 
+    getNamedTransformers(el)
+    {
+        const transformAttribute = this.options.attribute+'-transform'
+        if (!el.hasAttribute(transformAttribute)) {
+            return []
+        }
+        return el.getAttribute(transformAttribute)
+            .split(' ')
+            .filter(Boolean)
+            .map(name => {
+                const transformer = this.options.transformers[name]
+                if (!transformer) {
+                    console.warn('No transformer with name '+name+' configured', {cause: el})
+                    return null
+                }
+                return transformer
+            })
+            .filter(Boolean)
+    }
+
+    extractValue(context, value, currentValue)
+    {
+        if (!context?.element) {
+            return value
+        }
+        const transformers = this.getNamedTransformers(context.element)
+            .map(transformer => getTransformerPhase(transformer, 'extract'))
+            .filter(Boolean)
+            .reverse()
+        if (!transformers.length) {
+            return value
+        }
+        delete context.replaceValue
+        const extractContext = Object.assign({}, context, {
+            value,
+            currentValue,
+            originalValue: currentValue
+        })
+        runTransformerStack.call(this, transformers, extractContext)
+        context.replaceValue = extractContext.replaceValue
+        return extractContext.value
+    }
+
     /**
      * Finds the first template from an array of templates that
      * matches the given value. 
@@ -416,6 +445,30 @@ class SimplyBind
 export function bind(options)
 {
     return new SimplyBind(options)
+}
+
+function getTransformerPhase(transformer, phase)
+{
+    if (typeof transformer === 'function') {
+        return phase === 'render' ? transformer : null
+    }
+    if (transformer && typeof transformer[phase] === 'function') {
+        return transformer[phase]
+    }
+    return null
+}
+
+function runTransformerStack(transformers, context)
+{
+    let next = context => context
+    for (let transformer of transformers) {
+        next = ((next, transformer) => {
+            return (context) => {
+                return transformer.call(this, context, next)
+            }
+        })(next, transformer)
+    }
+    return next?.(context)
 }
 
 const tracking = new Map()

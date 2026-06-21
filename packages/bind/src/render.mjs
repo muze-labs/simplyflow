@@ -83,7 +83,7 @@ function isInt(s) {
  * @param path a JSON path
  * @param value the value to set
  */
-export function setValueByPath(root, path, value)
+export function setValueByPath(root, path, value, options={})
 {
     batch(() => {
         let parts = path.split('.')
@@ -124,7 +124,9 @@ export function setValueByPath(root, path, value)
                 curr = prevCurr[prevPart]
             }
         }
-        if (prev && prevPart && prev[prevPart]!==value) {
+        if (prev && prevPart && options.replace) {
+            prev[prevPart] = value
+        } else if (prev && prevPart && prev[prevPart]!==value) {
             if (Array.isArray(value)) {
                 prev[prevPart] = value
             } else if (value && typeof value=='object') {
@@ -408,11 +410,11 @@ export function input(context)
 
     if (writesFromDom(this, context)) {
         if (el.type=='checkbox') {
-            trackDomField.call(this, context.element, ['checked'], true, 'checked', checkboxEditValue)
+            trackDomField.call(this, context.element, ['checked'], true, 'checked', checkboxEditValue, context)
         } else if (el.type=='radio') {
-            trackDomField.call(this, context.element, ['checked'], true, 'checked', radioEditValue)
+            trackDomField.call(this, context.element, ['checked'], true, 'checked', radioEditValue, context)
         } else {
-            trackDomField.call(this, context.element, ['value'], true, 'value')
+            trackDomField.call(this, context.element, ['value'], true, 'value', undefined, context)
         }
     }
 }
@@ -508,9 +510,9 @@ export function select(context)
 
     if (writesFromDom(this, context)) {
         if (el.multiple) {
-            trackDomField.call(this, context.element, ['value'], true, 'value', selectMultipleEditValue)
+            trackDomField.call(this, context.element, ['value'], true, 'value', selectMultipleEditValue, context)
         } else {
-            trackDomField.call(this, context.element, ['value'], true, 'value')
+            trackDomField.call(this, context.element, ['value'], true, 'value', undefined, context)
         }
     }
 }
@@ -633,7 +635,7 @@ export function element(context, ...extraprops)
     const props = ['innerHTML','title','id','className'].concat(extraprops)
     setProperties(el, value, ...props)
     if (writesFromDom(this, context)) {
-        trackDomField.call(this, context.element, props, valueIsString)
+        trackDomField.call(this, context.element, props, valueIsString, 'innerHTML', undefined, context)
     }
 }
 
@@ -664,7 +666,7 @@ export function setProperties(el, data, ...properties) {
 
 function updateProperties(context, properties)
 {
-    trackDomField.call(this, context.element, properties, false)
+    trackDomField.call(this, context.element, properties, false, 'innerHTML', undefined, context)
 }
 
 export function getProperties(el, ...properties) {
