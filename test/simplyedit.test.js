@@ -237,3 +237,156 @@ describe('escape_html transformer', () => {
     }
   })
 })
+
+describe('SimplyEdit sortable lists', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+    jest.restoreAllMocks()
+  })
+
+  it('adds default handles to sortable list items and reorders app data with the keyboard', async () => {
+    document.body.innerHTML = `
+      <ol data-simply-list="sections" data-simply-sortable>
+        <template>
+          <li><span data-simply-field="title"></span></li>
+        </template>
+      </ol>
+    `
+
+    const editor = edit({
+      container: document.body,
+      data: {
+        sections: [
+          { title: 'First' },
+          { title: 'Second' },
+          { title: 'Third' }
+        ]
+      }
+    })
+
+    try {
+      await wait(150)
+      const handles = document.querySelectorAll('[data-simply-sort-handle]')
+      expect(handles).toHaveLength(3)
+      expect(handles[0].getAttribute('data-simply-generated')).toBe('true')
+      expect(handles[0].tagName).toBe('BUTTON')
+
+      handles[0].dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }))
+      await wait(150)
+
+      expect(editor.app.data.sections.map(section => section.title)).toEqual(['Second', 'First', 'Third'])
+      expect(Array.from(document.querySelectorAll('li span')).map(span => span.textContent)).toEqual(['Second', 'First', 'Third'])
+    } finally {
+      editor.destroy()
+    }
+  })
+
+
+  it('shows generated item handles outside the item flow and opens an item toolbar', async () => {
+    document.body.innerHTML = `
+      <ol data-simply-list="sections" data-simply-sortable>
+        <template>
+          <li><span data-simply-field="title"></span></li>
+        </template>
+      </ol>
+    `
+
+    const editor = edit({
+      container: document.body,
+      data: { sections: [{ title: 'First' }, { title: 'Second' }] }
+    })
+
+    try {
+      await wait(150)
+      const firstItem = document.querySelector('li')
+      const handle = firstItem.querySelector('[data-simply-sort-handle]')
+      expect(handle.getAttribute('data-simply-generated')).toBe('true')
+      expect(firstItem.classList.contains('simply-edit-has-default-sort-handle')).toBe(true)
+      expect(getComputedStyle(handle).position).toBe('absolute')
+
+      handle.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }))
+      await wait()
+
+      const toolbar = document.querySelector('[data-simply-sort-action-toolbar]')
+      expect(toolbar.hidden).toBe(false)
+      expect(toolbar.querySelector('[data-simply-sort-action="delete"]')).not.toBeNull()
+      expect(toolbar.querySelector('[data-simply-sort-action="append"]')).not.toBeNull()
+
+      toolbar.querySelector('[data-simply-sort-action="append"]').click()
+      await wait(150)
+
+      expect(editor.app.data.sections.map(section => section.title)).toEqual(['First', '', 'Second'])
+      expect(Array.from(document.querySelectorAll('li span')).map(span => span.textContent)).toEqual(['First', '', 'Second'])
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('adds a list handle that can insert into an empty list from the template shape', async () => {
+    document.body.innerHTML = `
+      <ol data-simply-list="sections" data-simply-sortable>
+        <template>
+          <li>
+            <span data-simply-field="title"></span>
+            <ul data-simply-list="children"><template><li data-simply-field=":value"></li></template></ul>
+          </li>
+        </template>
+      </ol>
+    `
+
+    const editor = edit({
+      container: document.body,
+      data: { sections: [] }
+    })
+
+    try {
+      await wait(150)
+      const listHandle = document.querySelector('[data-simply-list-handle]')
+      expect(listHandle).not.toBeNull()
+      expect(listHandle.textContent).toBe('+')
+
+      listHandle.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }))
+      await wait()
+
+      const toolbar = document.querySelector('[data-simply-sort-action-toolbar]')
+      expect(toolbar.hidden).toBe(false)
+      expect(toolbar.querySelector('[data-simply-sort-action="insert"]')).not.toBeNull()
+
+      toolbar.querySelector('[data-simply-sort-action="insert"]').click()
+      await wait(150)
+
+      expect(editor.app.data.sections).toEqual([{ title: '', children: [] }])
+      expect(document.querySelectorAll('li')).toHaveLength(1)
+    } finally {
+      editor.destroy()
+    }
+  })
+
+  it('uses custom sort handles when the template provides them', async () => {
+    document.body.innerHTML = `
+      <ol data-simply-list="sections" data-simply-sortable>
+        <template>
+          <li>
+            <button type="button" class="custom-handle" data-simply-sort-handle>Move</button>
+            <span data-simply-field="title"></span>
+          </li>
+        </template>
+      </ol>
+    `
+
+    const editor = edit({
+      container: document.body,
+      data: { sections: [{ title: 'First' }, { title: 'Second' }] }
+    })
+
+    try {
+      await wait(150)
+      const handles = document.querySelectorAll('[data-simply-sort-handle]')
+      expect(handles).toHaveLength(2)
+      expect(handles[0].classList.contains('custom-handle')).toBe(true)
+      expect(handles[0].hasAttribute('data-simply-generated')).toBe(false)
+    } finally {
+      editor.destroy()
+    }
+  })
+})

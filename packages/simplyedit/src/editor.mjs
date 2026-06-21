@@ -3,6 +3,7 @@ import { createHtmlDomEngine } from './engines/html-dom-engine.mjs'
 import { createToolbar } from './toolbar.mjs'
 import { getFieldPath, getValueByPath, setValueByPath } from './path.mjs'
 import { hasCaretOrSelection, hasVisibleSelection } from './selection-anchor.mjs'
+import { createSortableLists } from './sortable-list.mjs'
 
 const DEFAULT_SELECTOR = '[data-simply-editable]'
 
@@ -24,6 +25,11 @@ export class SimplyEdit
             container: this.container,
             data: options.data || {},
             transformers: options.transformers
+        })
+        this.sortable = options.sortable === false ? null : createSortableLists({
+            container: this.container,
+            app: this.app,
+            attribute: this.attribute
         })
         this.activeElement = null
         this.activeSession = null
@@ -191,6 +197,7 @@ export class SimplyEdit
             remove()
         }
         this.toolbar?.destroy?.()
+        this.sortable?.destroy?.()
         this.app?.destroy?.()
     }
 }

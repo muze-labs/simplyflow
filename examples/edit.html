@@ -25,6 +25,15 @@
             padding: 1rem;
             white-space: pre-wrap;
         }
+        .page-sections {
+            list-style: none;
+            padding: 0;
+        }
+        .page-section {
+            border: 1px solid #ddd;
+            margin: 0 0 1rem;
+            padding: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -33,12 +42,24 @@
     <p>
         Click the editable content, select some text to show the floating toolbar,
         or press Control+Space to open it at the caret. Escape hides it again.
-        Ctrl+B / Ctrl+I / Ctrl+U also work while editing.
+        Ctrl+B / Ctrl+I / Ctrl+U also work while editing. The section list below
+        is sortable; drag the generated handle, focus it and use the arrow keys,
+        or click a handle to add/delete sections.
     </p>
 
     <main>
         <h2 data-simply-field="title" data-simply-editable="richtext"></h2>
         <article data-simply-field="body" data-simply-editable="richtext"></article>
+
+        <h2>Sortable sections</h2>
+        <ol class="page-sections" data-simply-list="sections" data-simply-sortable>
+            <template>
+                <li class="page-section">
+                    <h3 data-simply-field="heading" data-simply-editable="richtext"></h3>
+                    <div data-simply-field="text" data-simply-editable="richtext"></div>
+                </li>
+            </template>
+        </ol>
     </main>
 
     <h2>Stored HTML</h2>
@@ -58,7 +79,12 @@
             container: document.body,
             data: {
                 title: 'A small editable page',
-                body: '<p>This is <strong>HTML</strong> stored in app data.</p><p>The visual editor writes HTML back to the same value.</p>'
+                body: '<p>This is <strong>HTML</strong> stored in app data.</p><p>The visual editor writes HTML back to the same value.</p>',
+                sections: [
+                    { heading: 'First section', text: '<p>Drag the generated handle to move this section. Click the handle to show section actions.</p>' },
+                    { heading: 'Second section', text: '<p>You can also focus a handle and use ArrowUp or ArrowDown.</p>' },
+                    { heading: 'Third section', text: '<p>The array order in app data is updated on drop.</p>' }
+                ]
             }
         })
     </script>

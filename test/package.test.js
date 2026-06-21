@@ -11,6 +11,7 @@ describe('workspace package entry points', () => {
     expect(typeof model.model).toBe('function')
     expect(typeof app.app).toBe('function')
     expect(typeof simplyedit.edit).toBe('function')
+    expect(typeof simplyedit.createSortableLists).toBe('function')
   })
 
   it('keeps the main package subpath imports as compatibility entry points', async () => {
@@ -34,6 +35,7 @@ describe('workspace package entry points', () => {
     expect(typeof simplyedit.SimplyEdit).toBe('function')
     expect(typeof simplyedit.createToolbar).toBe('function')
     expect(typeof simplyedit.createHtmlDomEngine).toBe('function')
+    expect(typeof simplyedit.createSortableLists).toBe('function')
   })
 
   it('keeps side-effectful render registration separate from the pure packages', async () => {

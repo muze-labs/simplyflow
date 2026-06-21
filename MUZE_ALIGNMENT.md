@@ -210,3 +210,15 @@ The editing engine is behind a small session adapter (`mount`, `execute`, `query
 **Principle:** Keep the editing UI discoverable without letting application-specific behavior leak into SimplyFlow.
 
 **Decision:** The SimplyEdit toolbar is owned by `@muze-labs/simplyedit`, not the core SimplyFlow packages. Editing fields activate on focus/click, but the toolbar only appears when the user has selected text or explicitly asks for the toolbar with `Control+Space`. `Escape` hides the toolbar. The toolbar uses the original visible cursor anchor approach and supports expandable subtoolbars for commands such as links.
+
+### Add SimplyEdit sortable list editing
+
+**Principle:** Keep editor behavior in SimplyEdit while preserving SimplyFlow's data-first rendering model.
+
+**Decision:** Sortable list editing lives in `@muze-labs/simplyedit`, not in SimplyFlow core. A list becomes sortable with a boolean `data-simply-sortable` attribute on the same element that already has `data-simply-list`, so the data path is not duplicated. If a rendered item provides `data-simply-sort-handle`, SimplyEdit uses it; otherwise it inserts a default accessible handle button as editor chrome.
+
+The first implementation uses Pointer Events rather than HTML5 Drag and Drop so it can support mouse, touch, and pen input more consistently. During a drag the helper may move DOM nodes temporarily for feedback, but the drop updates the underlying array in `app.data`; SimplyFlow remains the source of truth and re-renders from data. Handles also support keyboard reordering with arrow/Home/End keys.
+
+Generated item handles are editor chrome: they are positioned to the left of the rendered item and should not change the item's normal layout. Item handles can open a small action toolbar for delete/append actions. Sortable lists also get a list-level handle, present even for empty lists, which opens an insert toolbar and inserts before the first item. This keeps structural editing inside SimplyEdit while the underlying list remains ordinary SimplyFlow data.
+
+**Status:** Started
