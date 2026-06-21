@@ -1,7 +1,7 @@
 # Action module
 
 ```js
-import { actions } from './src/action.mjs'
+import { actions } from '@muze-labs/simplyflow/actions'
 ```
 
 Actions are named application functions. In normal apps you configure them through `app({ actions })`.

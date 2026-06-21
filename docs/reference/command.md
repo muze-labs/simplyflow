@@ -1,7 +1,7 @@
 # Command module
 
 ```js
-import { commands } from './src/command.mjs'
+import { commands } from '@muze-labs/simplyflow/commands'
 ```
 
 Commands connect DOM events to application behavior. In normal apps you configure them through `app({ commands })`.

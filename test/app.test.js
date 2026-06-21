@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { app } from '../src/app.mjs'
+import { app } from '@muze-labs/simplyflow-app'
 
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 

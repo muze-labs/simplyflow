@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals'
-import { signal } from '../src/state.mjs'
-import { bind, trace } from '../src/bind.mjs'
+import { signal } from '@muze-labs/simplyflow-state'
+import { bind, trace } from '@muze-labs/simplyflow-bind'
 
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 

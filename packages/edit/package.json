@@ -8,6 +8,6 @@
     ".": "./src/index.mjs"
   },
   "dependencies": {
-    "@muze-labs/simplyflow": "file:../.."
+    "@muze-labs/simplyflow": "0.9.0"
   }
 }

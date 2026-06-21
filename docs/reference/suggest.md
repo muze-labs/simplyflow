@@ -1,7 +1,7 @@
 # Suggest module
 
 ```js
-import { closest, editDistance } from './src/suggest.mjs'
+import { closest, editDistance } from '@muze-labs/simplyflow/suggest'
 ```
 
 The suggest module provides small helpers used by developer-friendly warnings, such as unknown app options, commands, actions, routes and behaviors.

@@ -1,7 +1,7 @@
 # Behavior module
 
 ```js
-import { behaviors } from './src/behavior.mjs'
+import { behaviors } from '@muze-labs/simplyflow/behaviors'
 ```
 
 Behaviors attach reusable JavaScript behavior to DOM elements.

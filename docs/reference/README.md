@@ -2,6 +2,17 @@
 
 This folder contains reference documentation for the public SimplyFlow modules. It is meant as a lookup guide, not as a tutorial. Start with the main project README and examples when learning the library for the first time.
 
+## Package entry points
+
+The reference uses the stable `@muze-labs/simplyflow/...` subpath imports. Developers who want the smallest direct dependency can import the split packages instead:
+
+- `@muze-labs/simplyflow-state`
+- `@muze-labs/simplyflow-bind`
+- `@muze-labs/simplyflow-model`
+- `@muze-labs/simplyflow-app`
+
+Those split packages are pure ESM and marked side-effect-free. The main `@muze-labs/simplyflow` root entry point intentionally initializes browser globals and registers `<simply-render>`.
+
 ## Beginner-facing modules
 
 - [App](app.md) — `app()` and the application options: `data`, `commands`, `actions`, `routes`, `shortcuts`, `behaviors`, `templates`, `styles`, `start`, and `onError`.

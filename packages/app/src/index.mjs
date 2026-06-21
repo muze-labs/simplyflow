@@ -1,5 +1,5 @@
-import { bind } from './bind.mjs'
-import { signal } from './state.mjs'
+import { bind } from '@muze-labs/simplyflow-bind'
+import { signal } from '@muze-labs/simplyflow-state'
 import { routes } from './route.mjs'
 import { commands, destroyCommands } from './command.mjs'
 import { actions } from './action.mjs'

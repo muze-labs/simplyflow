@@ -1,8 +1,8 @@
-import simply, { app, commands, actions, routes, path, shortcuts, behaviors, include, includes, html, css } from '../src/flow.mjs'
-import * as state from '../src/state.mjs'
-import * as model from '../src/model.mjs'
-import { bind } from '../src/bind.mjs'
-import * as dom from '../src/dom.mjs'
+import simply, { app, commands, actions, routes, path, shortcuts, behaviors, include, includes, html, css } from '@muze-labs/simplyflow'
+import * as state from '@muze-labs/simplyflow-state'
+import * as model from '@muze-labs/simplyflow-model'
+import { bind } from '@muze-labs/simplyflow-bind'
+import * as dom from '@muze-labs/simplyflow-bind/dom'
 
 const GLOBAL_KEYS = [
   'app',
@@ -79,7 +79,7 @@ describe('flow entrypoint API', () => {
   it('creates globalThis.simply when it does not exist', async () => {
     delete globalThis.simply
 
-    const simply = (await import(`../src/flow.mjs?fresh=${Date.now()}`)).default
+    const simply = (await import(`../packages/simplyflow/src/index.mjs?fresh=${Date.now()}`)).default
 
     expect(simply).toBe(globalThis.simply)
     expect(typeof simply.app).toBe('function')
@@ -95,7 +95,7 @@ describe('flow entrypoint API', () => {
     const existing = { existing: true }
     globalThis.simply = existing
 
-    const simply = (await import(`../src/flow.mjs?test=${Date.now()}`)).default
+    const simply = (await import(`../packages/simplyflow/src/index.mjs?test=${Date.now()}`)).default
 
     expect(simply).toBe(existing)
     expect(simply.existing).toBe(true)

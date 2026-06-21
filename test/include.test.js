@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { include, includes } from '../src/include.mjs'
+import { include, includes } from '@muze-labs/simplyflow-app/include'
 
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 let controllers = []

@@ -1,5 +1,6 @@
 import '@muze-labs/simplyflow'
-import { html, css } from '@muze-labs/simplyflow/highlight'
+
+const { html, css } = globalThis
 
 export default {
 	templates: {

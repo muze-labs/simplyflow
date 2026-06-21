@@ -1,39 +1,17 @@
 {
-  "name": "@muze-labs/simplyflow",
+  "name": "simplyflow-monorepo",
+  "private": true,
   "version": "0.9.0",
-  "description": "Reactive browser applications with signals, effects, data binding and an app layer",
+  "description": "Workspace for SimplyFlow packages.",
   "type": "module",
   "workspaces": [
     "packages/*"
   ],
-  "main": "./src/flow.mjs",
-  "exports": {
-    ".": "./src/flow.mjs",
-    "./app": "./src/app.mjs",
-    "./state": "./src/state.mjs",
-    "./bind": "./src/bind.mjs",
-    "./model": "./src/model.mjs",
-    "./dom": "./src/dom.mjs",
-    "./path": "./src/path.mjs",
-    "./route": "./src/route.mjs",
-    "./commands": "./src/command.mjs",
-    "./actions": "./src/action.mjs",
-    "./behaviors": "./src/behavior.mjs",
-    "./includes": "./src/include.mjs",
-    "./shortcuts": "./src/shortcut.mjs",
-    "./highlight": "./src/highlight.mjs",
-    "./dist/simply.flow.js": "./dist/simply.flow.js",
-    "./dist/simply.flow.min.js": "./dist/simply.flow.min.js",
-    "./package.json": "./package.json"
-  },
-  "directories": {
-    "example": "examples"
-  },
   "scripts": {
-    "build": "esbuild src/flow.mjs --bundle --outfile=dist/simply.flow.min.js --minify --sourcemap",
-    "build-dev": "esbuild src/flow.mjs --bundle --outfile=dist/simply.flow.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "dev": "watch 'npm run build-dev' ./src & npx http-server ."
+    "build": "npm --workspace @muze-labs/simplyflow run build",
+    "build-dev": "npm --workspace @muze-labs/simplyflow run build-dev",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
+    "dev": "watch 'npm run build-dev' ./packages & npx http-server ."
   },
   "repository": {
     "type": "git",
@@ -62,12 +40,6 @@
     "jest-environment-jsdom": "^29.7.0",
     "watch": "^1.0.2"
   },
-  "files": [
-    "README.md",
-    "MUZE_ALIGNMENT.md",
-    "dist/",
-    "src/"
-  ],
   "jest": {
     "transform": {},
     "testEnvironment": "jsdom"

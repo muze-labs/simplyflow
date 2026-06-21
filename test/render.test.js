@@ -1,4 +1,4 @@
-import '../src/render.mjs'
+import '@muze-labs/simplyflow/render'
 
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 

@@ -1,7 +1,7 @@
 # Include module
 
 ```js
-import { includes, include } from './src/include.mjs'
+import { includes, include } from '@muze-labs/simplyflow/includes'
 ```
 
 Includes load external HTML fragments into a page. `app()` automatically creates an app-scoped include controller for the app container.

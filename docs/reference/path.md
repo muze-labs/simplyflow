@@ -1,7 +1,7 @@
 # Path module
 
 ```js
-import path from './src/path.mjs'
+import path from '@muze-labs/simplyflow/path'
 ```
 
 The path module works with dotted object paths such as `person.name` or `contacts.0.id`.

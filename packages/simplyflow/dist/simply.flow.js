@@ -5,9 +5,9 @@
       __defProp(target, name, { get: all[name], enumerable: true });
   };
 
-  // src/state.mjs
-  var state_exports = {};
-  __export(state_exports, {
+  // ../state/src/index.mjs
+  var src_exports = {};
+  __export(src_exports, {
     addTracer: () => addTracer,
     batch: () => batch,
     clockEffect: () => clockEffect,
@@ -29,7 +29,7 @@
     untracked: () => untracked
   });
 
-  // src/symbols.mjs
+  // ../state/src/symbols.mjs
   var DEP = {
     ITERATE: Symbol.for("@simplyedit/simplyflow.iterate"),
     XRAY: Symbol.for("@simplyedit/simplyflow.xRay"),
@@ -40,7 +40,7 @@
     SIZE: "size"
   };
 
-  // src/state.mjs
+  // ../state/src/index.mjs
   var MAP_READS_KEY = /* @__PURE__ */ new Set(["get", "has"]);
   var MAP_READS_ITERATION = /* @__PURE__ */ new Set(["keys", "values", "entries", "forEach", Symbol.iterator]);
   var MAP_WRITES = /* @__PURE__ */ new Set(["set", "delete", "clear"]);
@@ -983,7 +983,7 @@
     return cloneValue(value);
   }
 
-  // src/bind.transformers.mjs
+  // ../bind/src/transformers.mjs
   function escape_html(context, next) {
     let content = context.value?.innerHTML;
     if (typeof context.value == "string") {
@@ -1005,7 +1005,7 @@
     next(context);
   }
 
-  // src/dom.mjs
+  // ../bind/src/dom.mjs
   var dom_exports = {};
   __export(dom_exports, {
     findAttribute: () => findAttribute,
@@ -1216,7 +1216,7 @@
     return el.closest("[" + attr + "]")?.getAttribute(attr);
   }
 
-  // src/bind.render.mjs
+  // ../bind/src/render.mjs
   function writesFromDom(binding, context) {
     return binding.options.twoway || context.edit;
   }
@@ -1709,7 +1709,7 @@
     return false;
   }
 
-  // src/bind.mjs
+  // ../bind/src/index.mjs
   var SimplyBind = class {
     /**
      * @param Object options - a set of options for this instance, options may include:
@@ -2118,9 +2118,9 @@
     return curr;
   }
 
-  // src/model.mjs
-  var model_exports = {};
-  __export(model_exports, {
+  // ../model/src/index.mjs
+  var src_exports2 = {};
+  __export(src_exports2, {
     columns: () => columns,
     filter: () => filter,
     model: () => model,
@@ -2376,7 +2376,7 @@
     customElements.define("simply-render", SimplyRender);
   }
 
-  // src/suggest.mjs
+  // ../app/src/suggest.mjs
   function closest(name, options, { maxDistance = 2, minLength = 4 } = {}) {
     if (name.length < minLength) {
       return;
@@ -2414,7 +2414,7 @@
     return previous[b.length];
   }
 
-  // src/route.mjs
+  // ../app/src/route.mjs
   function routes(options) {
     return new SimplyRoute(options);
   }
@@ -2759,7 +2759,7 @@
     return routeInfo;
   }
 
-  // src/path.mjs
+  // ../app/src/path.mjs
   var path = {
     get(dataset, pointer) {
       if (typeof pointer !== "string") {
@@ -2807,7 +2807,7 @@
   };
   var path_default = path;
 
-  // src/command.mjs
+  // ../app/src/command.mjs
   var commandState = /* @__PURE__ */ new WeakMap();
   var COMMAND_OPTIONS = [
     "commands",
@@ -3006,7 +3006,7 @@
     });
   }
 
-  // src/action.mjs
+  // ../app/src/action.mjs
   var warnedUnknownActions = /* @__PURE__ */ new WeakMap();
   function actions(options) {
     if (options.app) {
@@ -3061,7 +3061,7 @@
     console.warn(`simplyflow/action: unknown action "${property}"${suffix}`);
   }
 
-  // src/shortcut.mjs
+  // ../app/src/shortcut.mjs
   var shortcutState = /* @__PURE__ */ new WeakMap();
   var accesskeyState = /* @__PURE__ */ new WeakMap();
   var KEY = Object.freeze({
@@ -3191,7 +3191,7 @@
     accesskeyState.delete(accesskeyApi);
   }
 
-  // src/behavior.mjs
+  // ../app/src/behavior.mjs
   var BEHAVIOR_SELECTOR = "[data-simply-behavior]";
   var SimplyBehaviors = class {
     constructor(options = {}) {
@@ -3288,7 +3288,7 @@
     return nodes;
   }
 
-  // src/include.mjs
+  // ../app/src/include.mjs
   function throttle(callbackFunction, intervalTime) {
     let eventId = 0;
     return function throttledCallback(...params) {
@@ -3486,7 +3486,7 @@
     links: (links) => defaultInclude().includeLinks(Array.from(links))
   };
 
-  // src/app.mjs
+  // ../app/src/index.mjs
   var APP_OPTIONS = [
     "container",
     "data",
@@ -3724,7 +3724,7 @@
     }
   }
 
-  // src/highlight.mjs
+  // ../app/src/highlight.mjs
   function html(strings, ...values) {
     const outputArray = values.map(
       (value, index) => `${strings[index]}${value}`
@@ -3735,7 +3735,7 @@
     return html(strings, ...values);
   }
 
-  // src/flow.mjs
+  // src/index.mjs
   if (!globalThis.simply) {
     globalThis.simply = {};
   }
@@ -3753,7 +3753,7 @@
     app,
     bind,
     model: modelApi,
-    state: state_exports,
+    state: src_exports,
     signal,
     effect,
     batch,
@@ -3776,5 +3776,5 @@
     routes
   });
   delete globalThis.simply.advanced;
-  var flow_default = globalThis.simply;
+  var index_default = globalThis.simply;
 })();

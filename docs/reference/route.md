@@ -1,7 +1,7 @@
 # Route module
 
 ```js
-import { routes, SimplyRoute } from './src/route.mjs'
+import { routes, SimplyRoute } from '@muze-labs/simplyflow/route'
 ```
 
 Routes connect URLs to functions or action names.

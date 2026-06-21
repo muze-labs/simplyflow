@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals'
-import { effect, signal as stateSignal } from '../src/state.mjs'
-import { signal as domSignal, trackDomField, trackDomList } from '../src/dom.mjs'
-import { DEP } from '../src/symbols.mjs'
+import { effect, signal as stateSignal } from '@muze-labs/simplyflow-state'
+import { signal as domSignal, trackDomField, trackDomList } from '@muze-labs/simplyflow-bind/dom'
+import { DEP } from '@muze-labs/simplyflow-state/symbols'
 
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 

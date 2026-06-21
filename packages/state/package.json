@@ -1,0 +1,25 @@
+{
+  "name": "@muze-labs/simplyflow-state",
+  "version": "0.9.0",
+  "description": "Reactive state primitives for SimplyFlow.",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./symbols": "./src/symbols.mjs",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "src/"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muze-labs/simplyflow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/muze-labs/simplyflow/issues"
+  },
+  "homepage": "https://github.com/muze-labs/simplyflow#readme"
+}

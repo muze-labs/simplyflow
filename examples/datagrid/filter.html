@@ -5,13 +5,11 @@
 <link rel="stylesheet" href="../css/source.css">
 <link rel="stylesheet" href="datatable.css">
 <script type="importmap">
-	{
-		"imports": {
-			"@muze-labs/simplyflow/state": "../../src/state.mjs",
-			"@muze-labs/simplyflow/bind": "../../src/bind.mjs",
-			"@muze-labs/simplyflow/model": "../../src/model.mjs"
-		}
-	}
+{
+    "imports": {
+        "@muze-labs/simplyflow": "../../packages/simplyflow/dist/simply.flow.js"
+    }
+}
 </script>
 <script type="module">
   if (!("anchorName" in document.documentElement.style)) {
@@ -55,9 +53,10 @@
 
 <script src="https://cdn.jsdelivr.net/npm/simplyview/dist/simply.everything.js"></script>
 <script class="source" type="module">
-	import {signal, effect, batch} from '@muze-labs/simplyflow/state'
-	import {bind} from '@muze-labs/simplyflow/bind'
-	import {model, paging, sort, filter, columns} from '@muze-labs/simplyflow/model'
+	import '@muze-labs/simplyflow'
+	const {signal, effect, batch} = simply.state
+	const {bind} = simply
+	const {model, paging, sort, filter, columns} = simply.model
 	
 	async function main() {
 		let response = await fetch('users.json')

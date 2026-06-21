@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { routes, SimplyRoute } from '../src/route.mjs'
+import { routes, SimplyRoute } from '@muze-labs/simplyflow-app/route'
 
 beforeEach(() => {
   document.body.innerHTML = ''

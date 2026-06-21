@@ -1,7 +1,7 @@
 # Render element module
 
 ```js
-import './src/render.mjs'
+import '@muze-labs/simplyflow/render'
 ```
 
 This module registers the `<simply-render>` custom element.
@@ -15,7 +15,7 @@ The element is mainly a lower-level/advanced rendering helper. The app and bind 
 ## `SimplyRender`
 
 ```js
-import { SimplyRender } from './src/render.mjs'
+import { SimplyRender } from '@muze-labs/simplyflow/render'
 ```
 
 The class extends `HTMLElement`. Importing the module registers the element with `customElements` when it is not already registered.

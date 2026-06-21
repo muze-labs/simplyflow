@@ -1,7 +1,7 @@
 # Binding transformer module
 
 ```js
-import { escape_html, fixed_content } from './src/bind.transformers.mjs'
+import { escape_html, fixed_content } from '@muze-labs/simplyflow/bind/transformers'
 ```
 
 Binding transformers are small functions that can alter a binding context before rendering.

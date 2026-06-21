@@ -1,7 +1,7 @@
 # Highlight helper module
 
 ```js
-import { html, css } from './src/highlight.mjs'
+import { html, css } from '@muze-labs/simplyflow/highlight'
 ```
 
 This module exports identity template tag helpers. They exist mainly to help code editors apply HTML and CSS syntax highlighting inside template literals.

@@ -1,7 +1,7 @@
 # Symbols module
 
 ```js
-import { DEP } from './src/symbols.mjs'
+import { DEP } from '@muze-labs/simplyflow/symbols'
 ```
 
 The symbols module contains shared symbols and dependency keys used internally by the state and binding layers.

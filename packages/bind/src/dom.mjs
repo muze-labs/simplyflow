@@ -1,8 +1,8 @@
 import { createSignal, getSignal, isSignal, signal as stateSignal, notifyGet, notifySet, makeContext,
-         throttledEffect, untracked, batch } from './state.mjs'
-import { getValueByPath } from './bind.mjs'
-import { setValueByPath, getProperties } from './bind.render.mjs'
-import { DEP } from './symbols.mjs'
+         throttledEffect, untracked, batch } from '@muze-labs/simplyflow-state'
+import { getValueByPath } from './index.mjs'
+import { setValueByPath, getProperties } from './render.mjs'
+import { DEP } from '@muze-labs/simplyflow-state/symbols'
 
 /**
  * Tracks element => signal mapping so that each element only has one signal

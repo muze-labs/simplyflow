@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals'
-import { model, sort, paging, filter, columns, scroll } from '../src/model.mjs'
-import { effect, signal } from '../src/state.mjs'
+import { model, sort, paging, filter, columns, scroll } from '@muze-labs/simplyflow-model'
+import { effect, signal } from '@muze-labs/simplyflow-state'
 
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 

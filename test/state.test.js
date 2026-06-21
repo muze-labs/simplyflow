@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals'
-import { signal as domSignal } from '../src/dom.mjs'
-import { DEP } from '../src/symbols.mjs'
+import { signal as domSignal } from '@muze-labs/simplyflow-bind/dom'
+import { DEP } from '@muze-labs/simplyflow-state/symbols'
 import {
   signal,
   createSignal,
@@ -20,7 +20,7 @@ import {
   untracked,
   destroy,
   clone
-} from '../src/state.mjs'
+} from '@muze-labs/simplyflow-state'
 
 const wait = (ms = 0) => new Promise(resolve => setTimeout(resolve, ms))
 

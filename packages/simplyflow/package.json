@@ -1,0 +1,59 @@
+{
+  "name": "@muze-labs/simplyflow",
+  "version": "0.9.0",
+  "description": "Reactive browser applications with signals, effects, data binding and an app layer.",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./app": "./src/app.mjs",
+    "./state": "./src/state.mjs",
+    "./bind": "./src/bind.mjs",
+    "./bind/render": "./src/bind-render.mjs",
+    "./bind/transformers": "./src/bind-transformers.mjs",
+    "./model": "./src/model.mjs",
+    "./dom": "./src/dom.mjs",
+    "./path": "./src/path.mjs",
+    "./route": "./src/route.mjs",
+    "./commands": "./src/command.mjs",
+    "./actions": "./src/action.mjs",
+    "./behaviors": "./src/behavior.mjs",
+    "./includes": "./src/include.mjs",
+    "./shortcuts": "./src/shortcut.mjs",
+    "./highlight": "./src/highlight.mjs",
+    "./render": "./src/render.mjs",
+    "./suggest": "./src/suggest.mjs",
+    "./symbols": "./src/symbols.mjs",
+    "./dist/simply.flow.js": "./dist/simply.flow.js",
+    "./dist/simply.flow.min.js": "./dist/simply.flow.min.js",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "./src/index.mjs",
+    "./src/render.mjs"
+  ],
+  "files": [
+    "src/",
+    "dist/"
+  ],
+  "scripts": {
+    "build": "esbuild src/index.mjs --bundle --outfile=dist/simply.flow.min.js --minify --sourcemap",
+    "build-dev": "esbuild src/index.mjs --bundle --outfile=dist/simply.flow.js",
+    "dev": "watch 'npm run build-dev' ./src ../state/src ../bind/src ../model/src ../app/src & npx http-server ../.."
+  },
+  "dependencies": {
+    "@muze-labs/simplyflow-state": "0.9.0",
+    "@muze-labs/simplyflow-bind": "0.9.0",
+    "@muze-labs/simplyflow-model": "0.9.0",
+    "@muze-labs/simplyflow-app": "0.9.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muze-labs/simplyflow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/muze-labs/simplyflow/issues"
+  },
+  "homepage": "https://github.com/muze-labs/simplyflow#readme"
+}

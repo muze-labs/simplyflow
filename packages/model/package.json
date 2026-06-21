@@ -1,0 +1,27 @@
+{
+  "name": "@muze-labs/simplyflow-model",
+  "version": "0.9.0",
+  "description": "Model, sorting, filtering, paging and scrolling helpers for SimplyFlow.",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "src/"
+  ],
+  "dependencies": {
+    "@muze-labs/simplyflow-state": "0.9.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muze-labs/simplyflow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/muze-labs/simplyflow/issues"
+  },
+  "homepage": "https://github.com/muze-labs/simplyflow#readme"
+}

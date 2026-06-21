@@ -1,7 +1,7 @@
 # DOM signal module
 
 ```js
-import * as dom from './src/dom.mjs'
+import * as dom from '@muze-labs/simplyflow/dom'
 ```
 
 The DOM module provides reactive proxies for DOM elements and helpers used by the binding layer.

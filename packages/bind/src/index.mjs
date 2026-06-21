@@ -1,7 +1,7 @@
-import { throttledEffect, destroy } from './state.mjs'
-import { escape_html, fixed_content } from './bind.transformers.mjs'
-import * as render from './bind.render.mjs'
-import { DEP } from './symbols.mjs'
+import { throttledEffect, destroy } from '@muze-labs/simplyflow-state'
+import { escape_html, fixed_content } from './transformers.mjs'
+import * as render from './render.mjs'
+import { DEP } from '@muze-labs/simplyflow-state/symbols'
 
 /**
  * Implements one way databinding, updating dom elements with matching attributes

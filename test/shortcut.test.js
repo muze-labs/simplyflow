@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { shortcuts, accesskeys } from '../src/shortcut.mjs'
+import { shortcuts, accesskeys } from '@muze-labs/simplyflow-app/shortcut'
 
 beforeEach(() => {
   document.body.innerHTML = ''

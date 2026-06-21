@@ -28,6 +28,25 @@ Chapter 7 uses Metro to keep the API examples short. Pages that use `metro.jsonA
 <script src="https://cdn.jsdelivr.net/npm/@muze-nl/metro/dist/everything.js"></script>
 ```
 
+The larger no-build examples use an import map with only the complete SimplyFlow browser bundle and Metro:
+
+```html
+<script type="importmap">
+{
+  "imports": {
+    "@muze-labs/simplyflow": "https://cdn.jsdelivr.net/npm/@muze-labs/simplyflow/dist/simply.flow.js",
+    "@muze-nl/metro": "https://cdn.jsdelivr.net/npm/@muze-nl/metro@0.6.19/src/everything.mjs"
+  }
+}
+</script>
+<script type="module">
+import '@muze-labs/simplyflow'
+import '@muze-nl/metro'
+</script>
+```
+
+That keeps the beginner path simple. The reference documentation still shows subpath and split-package imports for projects that use a bundler and want tree-shakeable code.
+
 ## Start here
 
 1. [Meet your first app](01-meet-your-app.md)

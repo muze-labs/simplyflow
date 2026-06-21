@@ -3,9 +3,9 @@
  * Will be used unless overriden in the SimplyBind options parameter
  */
 import { signal as domSignal, trackDomField, trackDomList } from './dom.mjs'
-import { throttledEffect, effect, untracked, batch } from './state.mjs'
-import { getValueByPath } from './bind.mjs'
-import { DEP } from './symbols.mjs'
+import { throttledEffect, effect, untracked, batch } from '@muze-labs/simplyflow-state'
+import { getValueByPath } from './index.mjs'
+import { DEP } from '@muze-labs/simplyflow-state/symbols'
 
 function writesFromDom(binding, context)
 {

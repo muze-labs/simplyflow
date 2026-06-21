@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { commands } from '../src/command.mjs'
+import { commands } from '@muze-labs/simplyflow-app/command'
 
 beforeEach(() => {
   document.body.innerHTML = ''

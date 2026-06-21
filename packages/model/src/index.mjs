@@ -1,4 +1,4 @@
-import { signal, isSignal, raw, throttledEffect, batch } from './state.mjs'
+import { signal, isSignal, raw, throttledEffect, batch } from '@muze-labs/simplyflow-state'
 
 /**
  * This class implements a pluggable data model, where you can

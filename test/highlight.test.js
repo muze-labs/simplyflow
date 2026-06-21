@@ -1,4 +1,4 @@
-import { html, css } from '../src/highlight.mjs'
+import { html, css } from '@muze-labs/simplyflow-app/highlight'
 
 describe('highlight template helpers', () => {
   it('interpolates html and css template strings', () => {

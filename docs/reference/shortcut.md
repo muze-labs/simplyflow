@@ -1,7 +1,7 @@
 # Shortcut module
 
 ```js
-import { shortcuts, accesskeys } from './src/shortcut.mjs'
+import { shortcuts, accesskeys } from '@muze-labs/simplyflow/shortcuts'
 ```
 
 Shortcuts handle keyboard commands.

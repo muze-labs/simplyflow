@@ -1,7 +1,7 @@
 # Binding renderer module
 
 ```js
-import * as render from './src/bind.render.mjs'
+import * as render from '@muze-labs/simplyflow/bind/render'
 ```
 
 This module contains renderer functions used by `bind()`. Most applications use them indirectly through `bind()` or `app()`.

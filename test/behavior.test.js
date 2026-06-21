@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { behaviors } from '../src/behavior.mjs'
+import { behaviors } from '@muze-labs/simplyflow-app/behavior'
 
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 

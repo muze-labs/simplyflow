@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { actions } from '../src/action.mjs'
+import { actions } from '@muze-labs/simplyflow-app/action'
 
 afterEach(() => {
   jest.restoreAllMocks()

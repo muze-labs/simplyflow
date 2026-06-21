@@ -1,4 +1,4 @@
-import path from '../src/path.mjs'
+import path from '@muze-labs/simplyflow-app/path'
 
 describe('path API', () => {
   it('handles empty, non-string and falsy path values', () => {

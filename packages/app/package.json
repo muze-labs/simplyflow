@@ -1,0 +1,37 @@
+{
+  "name": "@muze-labs/simplyflow-app",
+  "version": "0.9.0",
+  "description": "Application layer helpers for SimplyFlow.",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./action": "./src/action.mjs",
+    "./behavior": "./src/behavior.mjs",
+    "./command": "./src/command.mjs",
+    "./highlight": "./src/highlight.mjs",
+    "./include": "./src/include.mjs",
+    "./path": "./src/path.mjs",
+    "./route": "./src/route.mjs",
+    "./shortcut": "./src/shortcut.mjs",
+    "./suggest": "./src/suggest.mjs",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "src/"
+  ],
+  "dependencies": {
+    "@muze-labs/simplyflow-state": "0.9.0",
+    "@muze-labs/simplyflow-bind": "0.9.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muze-labs/simplyflow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/muze-labs/simplyflow/issues"
+  },
+  "homepage": "https://github.com/muze-labs/simplyflow#readme"
+}
