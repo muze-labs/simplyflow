@@ -210,7 +210,7 @@ describe('model API contract coverage', () => {
     expect(m.view.current.map(row => row.id)).toEqual([1, 3, 4])
   })
 
-  it('projects columns, fills missing values with null, and reacts to hidden changes', async () => {
+  it('projects columns, fills missing values with null, and reacts to visible changes', async () => {
     const m = model({
       data: [
         { id: 1, name: 'Ada', internal: 'x' },
@@ -221,7 +221,7 @@ describe('model API contract coverage', () => {
     m.addEffect(columns({
       id: {},
       name: {},
-      internal: { hidden: true },
+      internal: { visible: false },
       missing: {}
     }))
 
@@ -230,8 +230,8 @@ describe('model API contract coverage', () => {
       { id: 2, name: null, missing: null }
     ])
 
-    m.state.options.columns.internal.hidden = false
-    m.state.options.columns.name.hidden = true
+    m.state.options.columns.internal.visible = true
+    m.state.options.columns.name.visible = false
     await wait()
 
     expect(m.view.current).toEqual([
@@ -251,13 +251,13 @@ describe('model API contract coverage', () => {
     m.addEffect(columns({
       id: {},
       name: {},
-      internal: { hidden: true }
+      internal: { visible: false }
     }))
 
     const firstProjection = m.view.current[0]
     const secondProjection = m.view.current[1]
 
-    m.state.options.columns.internal.hidden = false
+    m.state.options.columns.internal.visible = true
     await wait()
 
     expect(m.view.current[0]).toBe(firstProjection)
@@ -267,7 +267,7 @@ describe('model API contract coverage', () => {
       { id: 2, name: 'Grace', internal: 'y' }
     ])
 
-    m.state.options.columns.name.hidden = true
+    m.state.options.columns.name.visible = false
     await wait()
 
     expect(m.view.current[0]).toBe(firstProjection)
@@ -389,7 +389,7 @@ describe('model API oversight fixes', () => {
       columns: {
         id: {},
         name: {},
-        internal: { hidden: true }
+        internal: { visible: false }
       }
     }))
 

@@ -190,13 +190,13 @@ export function filter(options) {
 
 /**
  * Returns a function for model.addEffect that filters the data to only contain
- * columns (properties) that aren't hidden. Automatically runs again if any columns
- * hidden property changes.
+ * visible columns (properties). Automatically runs again if any column
+ * visible property changes.
  * 
  * Options:
  * - columns (object) (required) - an object with properties describing each column. Each 
- * property must be an object with an optional `hidden` property. If set to a truthy value,
- * and property in the dataset with the same name, will be filtered out.
+ * property must be an object with an optional `visible` property. Columns are visible by
+ * default; set `visible` to false to filter the property out.
  */
 export function columns(options={}) {
 	const columnOptions = options?.columns && typeof options.columns === 'object'
@@ -216,7 +216,7 @@ export function columns(options={}) {
 			const columns = this.state.options.columns
 
 			for (let key of Object.keys(columns)) {
-				if (!columns[key]?.hidden) {
+				if (columns[key]?.visible !== false) {
 					visibleKeys.push(key)
 					visible.add(key)
 				}

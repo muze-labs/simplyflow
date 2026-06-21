@@ -34,9 +34,9 @@
 <nav class="ds-datatable-column-toggle ds-dropdown-nav ds-dropdown-right ds-align-left" popover id="menu">
 	<ul class="ds-dropdown-list" data-simply-map="options.columns">
 		<template>
-			<li class="ds-dropdown-item" data-simply-command="dsToggleColumn">
+			<li class="ds-dropdown-item">
 				<label>
-					<input type="checkbox" value=":empty" data-simply-field="hidden">
+					<input type="checkbox" data-simply-edit="visible">
 					<span data-simply-field="name"></span>
 				</label>
 			</li>
@@ -48,7 +48,7 @@
 	<table class="ds-datatable ds-datatable-sticky-header ds-datatable-rulers ds-datatable-virtual-scroll">
 	<thead>
 		<tr data-simply-map="options.columns">
-			<template data-simply-field="hidden" data-simply-match=":empty">
+			<template data-simply-field="visible" data-simply-match=":notempty">
 				<th>
 					<span data-simply-command="toggleSort" data-simply-field="name"></span>
 					<button class="ds-button ds-button-naked ds-dropdown" data-simply-command="toggleFilter">
@@ -124,29 +124,32 @@
 		// adds the effect to render visible columns
 		usersModel.addEffect(columns({
 			first_name: {
-				name: 'First Name'
+				name: 'First Name',
+				visible: true
 			},
 			last_name: {
-				name: 'Last Name'
+				name: 'Last Name',
+				visible: true
 			},
 			email: {
-				name: 'E-mail'
+				name: 'E-mail',
+				visible: true
 			},
 			city: {
 				name: 'City',
-				hidden: true
+				visible: false
 			},
 			street: {
 				name: 'Address',
-				hidden: true
+				visible: false
 			},
 			gender_abbr: {
 				name: 'Gender',
-				hidden: true
+				visible: false
 			},
 			username: {
 				name: 'Username',
-				hidden: true
+				visible: false
 			}
 		}))
 
@@ -162,14 +165,6 @@
 							this.data.options.sort.direction = 'asc'
 						}
 					})
-				},
-				dsToggleColumnSelect: function(el, value) {
-					el.querySelector('.ds-datatable-column-toggle').classList.toggle('ds-selected')
-				},
-				dsToggleColumn: function(el, value) {
-					const key = el.dataset.simplyKey
-					const columns = this.data.options.columns
-					columns[key].hidden = columns[key].hidden ? 0 : 1
 				},
 				filter: function(el,value) {
 					// find property name

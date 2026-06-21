@@ -23,7 +23,7 @@
 	<table class="ds-datatable ds-datatable-sticky-header ds-datatable-rulers">
 	<thead>
 		<tr data-simply-map="options.columns">
-			<template data-simply-field="hidden" data-simply-match=":empty">
+			<template data-simply-field="visible" data-simply-match=":notempty">
 				<th>
 					<span data-simply-field="name"></span>
           <button class="ds-button ds-button-naked ds-dropdown" data-simply-command="toggleFilter">
@@ -67,29 +67,32 @@
 
 		usersModel.addEffect(columns({
 			first_name: {
-				name: 'First Name'
+				name: 'First Name',
+				visible: true
 			},
 			last_name: {
-				name: 'Last Name'
+				name: 'Last Name',
+				visible: true
 			},
 			email: {
-				name: 'E-mail'
+				name: 'E-mail',
+				visible: true
 			},
 			city: {
 				name: 'City',
-				hidden: true
+				visible: false
 			},
 			street: {
 				name: 'Address',
-				hidden: true
+				visible: false
 			},
 			gender_abbr: {
 				name: 'Gender',
-				hidden: true
+				visible: false
 			},
 			username: {
 				name: 'Username',
-				hidden: true
+				visible: false
 			}		
 		}))
 

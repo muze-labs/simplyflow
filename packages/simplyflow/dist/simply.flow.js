@@ -2281,7 +2281,7 @@
         const visible = /* @__PURE__ */ new Set();
         const columns2 = this.state.options.columns;
         for (let key of Object.keys(columns2)) {
-          if (!columns2[key]?.hidden) {
+          if (columns2[key]?.visible !== false) {
             visibleKeys.push(key);
             visible.add(key);
           }

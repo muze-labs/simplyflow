@@ -113,9 +113,15 @@ table.addEffect(model.columns({
   columns: {
     id: {},
     name: {},
-    email: { hidden: true }
+    email: { visible: false }
   }
 }))
+```
+
+Columns are visible by default. Set `visible: false` to hide a column:
+
+```js
+model.columns({ id: {}, name: {}, email: { visible: false } })
 ```
 
 A shorthand object shape is also supported:

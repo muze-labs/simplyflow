@@ -167,3 +167,15 @@ The split is intentionally conservative: tightly coupled binding internals such 
 ## Review cadence
 
 Review this document before feature work, before releases, and whenever the public API or dependency surface changes. Close issues by changing their status to `Done` and leaving a short note about the decision.
+
+
+### Prefer editable positive state in examples
+
+**Status:** Done
+
+Column visibility now uses `visible` as the public model option. Columns remain
+visible by default (`visible !== false`), but examples that expose visibility in
+the UI use explicit `visible: true` / `visible: false` booleans and bind
+checkboxes with `data-simply-edit`. This keeps beginner examples command-free
+where simple data editing is enough, and avoids supporting both `hidden` and
+`visible` for the same concept.

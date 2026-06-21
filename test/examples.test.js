@@ -152,6 +152,22 @@ describe('HNPWA examples', () => {
     }
   })
 
+  it('uses visible column state and data-simply-edit for column toggles', () => {
+    for (const file of fs.readdirSync('examples/datagrid').filter(file => file.endsWith('.html'))) {
+      const html = fs.readFileSync(`examples/datagrid/${file}`, 'utf8')
+
+      expect(html).not.toMatch(/\bhidden\s*:/)
+      expect(html).not.toMatch(/data-simply-field="hidden"/)
+    }
+
+    const selectable = fs.readFileSync('examples/datagrid/selectable-columns.html', 'utf8')
+
+    expect(selectable).toMatch(/data-simply-edit="visible"/)
+    expect(selectable).not.toMatch(/data-simply-command="dsToggleColumn"/)
+    expect(selectable).not.toMatch(/dsToggleColumn\s*:/)
+  })
+
+
   it('keeps beginner examples from importing split packages directly', () => {
     const allowed = new Set(['examples/edit.html'])
     const files = [
