@@ -1,9 +1,28 @@
 {
-  "name": "simplyflow",
+  "name": "@muze-labs/simplyflow",
   "version": "0.9.0",
   "description": "Reactive browser applications with signals, effects, data binding and an app layer",
-  "main": "src/flow.mjs",
   "type": "module",
+  "main": "./src/flow.mjs",
+  "exports": {
+    ".": "./src/flow.mjs",
+    "./app": "./src/app.mjs",
+    "./state": "./src/state.mjs",
+    "./bind": "./src/bind.mjs",
+    "./model": "./src/model.mjs",
+    "./dom": "./src/dom.mjs",
+    "./path": "./src/path.mjs",
+    "./route": "./src/route.mjs",
+    "./commands": "./src/command.mjs",
+    "./actions": "./src/action.mjs",
+    "./behaviors": "./src/behavior.mjs",
+    "./includes": "./src/include.mjs",
+    "./shortcuts": "./src/shortcut.mjs",
+    "./highlight": "./src/highlight.mjs",
+    "./dist/simply.flow.js": "./dist/simply.flow.js",
+    "./dist/simply.flow.min.js": "./dist/simply.flow.min.js",
+    "./package.json": "./package.json"
+  },
   "directories": {
     "example": "examples"
   },
@@ -11,11 +30,11 @@
     "build": "esbuild src/flow.mjs --bundle --outfile=dist/simply.flow.min.js --minify --sourcemap",
     "build-dev": "esbuild src/flow.mjs --bundle --outfile=dist/simply.flow.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "watch": "watch 'npm run build-dev' ./src & npx http-server ."
+    "dev": "watch 'npm run build-dev' ./src & npx http-server ."
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/simplyedit/simplyflow.git"
+    "url": "git+https://github.com/muze-labs/simplyflow.git"
   },
   "keywords": [
     "UI",
@@ -26,9 +45,9 @@
   "author": "auke@muze.nl",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/simplyedit/simplyflow/issues"
+    "url": "https://github.com/muze-labs/simplyflow/issues"
   },
-  "homepage": "https://github.com/simplyedit/simplyflow#readme",
+  "homepage": "https://github.com/muze-labs/simplyflow#readme",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -42,6 +61,7 @@
   },
   "files": [
     "README.md",
+    "MUZE_ALIGNMENT.md",
     "dist/",
     "src/",
     "docs/",
