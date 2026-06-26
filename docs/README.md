@@ -52,9 +52,9 @@ SimplyFlow documentation is divided into four kinds of pages.
 | Tutorials | Learn SimplyFlow step by step |
 | Cookbook | Copy a small solution to a common problem |
 | Reference | Look up exact attributes, options, and function details |
-| Programmer manuals | Understand the design, lifecycle, and package structure |
+| [Programmer manuals](manuals/README.md) | Understand the design, lifecycle, and package structure |
 
-The full structure is being added in stages. The [reference documentation](reference/README.md) is already available.
+The full structure is being added in stages. The [reference documentation](reference/README.md) is already available. Start the manuals with [The SimplyFlow way](manuals/the-simplyflow-way.md).
 
 ## The core idea
 
