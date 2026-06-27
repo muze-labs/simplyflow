@@ -1,6 +1,6 @@
 {
   "name": "@muze-labs/simplyflow-bind",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "DOM binding helpers for SimplyFlow.",
   "type": "module",
   "main": "./src/index.mjs",

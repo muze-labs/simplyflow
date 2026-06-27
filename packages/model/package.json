@@ -1,6 +1,6 @@
 {
   "name": "@muze-labs/simplyflow-model",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Model, sorting, filtering, paging and scrolling helpers for SimplyFlow.",
   "type": "module",
   "main": "./src/index.mjs",

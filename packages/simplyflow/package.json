@@ -1,6 +1,6 @@
 {
   "name": "@muze-labs/simplyflow",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Reactive browser applications with signals, effects, data binding and an app layer.",
   "type": "module",
   "main": "./src/index.mjs",
