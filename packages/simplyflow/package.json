@@ -1,6 +1,6 @@
 {
   "name": "@muze-labs/simplyflow",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Reactive browser applications with signals, effects, data binding and an app layer.",
   "type": "module",
   "main": "./src/index.mjs",
@@ -42,10 +42,10 @@
     "dev": "watch 'npm run build-dev' ./src ../state/src ../bind/src ../model/src ../app/src & npx http-server ../.."
   },
   "dependencies": {
-    "@muze-labs/simplyflow-state": "0.10.0",
-    "@muze-labs/simplyflow-bind": "0.10.0",
-    "@muze-labs/simplyflow-model": "0.10.0",
-    "@muze-labs/simplyflow-app": "0.10.0"
+    "@muze-labs/simplyflow-state": "0.10.1",
+    "@muze-labs/simplyflow-bind": "0.10.1",
+    "@muze-labs/simplyflow-model": "0.10.1",
+    "@muze-labs/simplyflow-app": "0.10.1"
   },
   "license": "MIT",
   "repository": {
