@@ -11,6 +11,7 @@ import { closest } from './suggest.mjs'
 const APP_OPTIONS = [
     'container',
     'data',
+    'attribute',
     'templates',
     'styles',
     'start',
@@ -53,6 +54,7 @@ class SimplyApp
             switch(key) {
                 case 'container':
                 case 'data':
+                case 'attribute':
                 case 'templates':
                 case 'styles':
                 case 'start':
@@ -92,7 +94,7 @@ class SimplyApp
         this.binding = bind({
             root: this.data,
             container: this.container,
-            attribute: 'data-simply',
+            attribute: options.attribute || 'data-simply',
             transformers: this.transformers
         })
 

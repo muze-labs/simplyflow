@@ -13,7 +13,7 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
     "dev": "watch 'npm run build-dev' ./packages & npx http-server .",
     "pack:dry-run": "npm pack --dry-run --workspaces",
-    "release:check": "npm test && npm run build && npm run pack:dry-run"
+    "release:check": "npm run build && npm test && npm run pack:dry-run"
   },
   "repository": {
     "type": "git",

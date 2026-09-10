@@ -23,3 +23,5 @@ const myApp = app({
 ```
 
 This package depends on the state and bind packages, is pure ESM, and is marked as side-effect-free for bundlers.
+
+The `attribute` option selects the binding attribute prefix, just as in `simply.bind`. It defaults to `data-simply`. For example, `app({ attribute: 'data-flow', data: { title: 'Hello' } })` binds `data-flow-field="title"` and leaves SimplyEdit's `data-simply-field` attributes alone. Commands still use `data-simply-command`.
