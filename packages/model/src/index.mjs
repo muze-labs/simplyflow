@@ -310,7 +310,8 @@ export function scroll(options) {
 			let end   = start + scrollOptions.rowCount
 			if (end > data.current.length) {
 				end   = data.current.length
-				start = end - scrollOptions.rowCount
+				// A negative slice start would omit the first rows of a short list.
+				start = Math.max(0, end - scrollOptions.rowCount)
 			}
 			return data.current.slice(start, end)
 		}, 50)

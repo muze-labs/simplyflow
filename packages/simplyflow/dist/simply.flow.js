@@ -2476,7 +2476,7 @@
         let end = start + scrollOptions.rowCount;
         if (end > data.current.length) {
           end = data.current.length;
-          start = end - scrollOptions.rowCount;
+          start = Math.max(0, end - scrollOptions.rowCount);
         }
         return data.current.slice(start, end);
       }, 50);
