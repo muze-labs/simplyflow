@@ -253,6 +253,14 @@ const signalHandler = {
         const value = readTarget(target, property)
         notifyGet(receiver, property)
 
+        // Proxy invariants require the exact value of fixed own properties.
+        // In particular, a graph owner or frozen method cannot be wrapped.
+        const descriptor = Object.getOwnPropertyDescriptor(target, property)
+        if (descriptor?.configurable === false && (
+            (Object.hasOwn(descriptor, 'value') && descriptor.writable === false)
+            || (Object.hasOwn(descriptor, 'get') && descriptor.get === undefined)
+        )) return value
+
         if (typeof value === 'function') {
             if (Array.isArray(target)) {
                 return wrapArrayMethod(target, property, receiver, value)
