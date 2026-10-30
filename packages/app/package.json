@@ -1,6 +1,6 @@
 {
   "name": "@muze-labs/simplyflow-app",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "description": "Application layer helpers for SimplyFlow.",
   "type": "module",
   "main": "./src/index.mjs",

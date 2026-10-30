@@ -3,7 +3,6 @@
   "version": "0.1.1",
   "description": "Experimental SimplyEdit application layer built on SimplyFlow.",
   "type": "module",
-  "private": true,
   "main": "./src/index.mjs",
   "scripts": {
     "build": "esbuild src/index.mjs --bundle --format=esm --outfile=dist/simply.edit.min.js --minify --sourcemap",
@@ -20,7 +19,7 @@
     "./sortable-list": "./src/sortable-list.mjs"
   },
   "dependencies": {
-    "@muze-labs/simplyflow-app": "0.10.2",
+    "@muze-labs/simplyflow-app": "0.10.3",
     "@muze-labs/simplyflow-state": "0.10.2"
   },
   "sideEffects": false,

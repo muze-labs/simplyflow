@@ -241,7 +241,35 @@ npm test
 npm run build
 ```
 
-When publishing the split packages, publish the dependency packages first (`state`, then `bind`/`model`, then `app`, then `simplyflow`) so the main package can resolve its package dependencies.
+Before publishing, run:
+
+```shell
+npm run release:check
+```
+
+This runs tests, builds the bundles, checks every workspace package against the
+public npm registry, and previews the package contents. `npm run release:versions`
+runs just the registry check against the files currently on disk; build first
+when bundled files have changed.
+
+The registry check reports:
+
+- `PUBLISH`: the local version is available. The current npm `latest` version is shown.
+- `SKIP`: that exact package archive is already published. Do not publish it again.
+- `COLLISION`: that version is published with different contents. The check fails;
+  bump the package version, update its workspace dependency references, and sync
+  the lockfile before retrying.
+- `ERROR`: npm could not be checked, including network or authentication failures.
+  The check fails rather than assuming the version is available. Only a 404 means
+  that the package name is not yet published.
+
+Identical archive checksums allow the check to resume after a partial release.
+The check does not publish anything or reserve versions; run it again if someone
+else may have published since your last check.
+
+Publish only packages marked `PUBLISH`, with dependencies first: `state`, then
+`bind`/`model`, then `app`, then `simplyflow`/`simplyedit`, then `simplyflow-edit`.
+The private monorepo root is not published.
 
 ## License
 
