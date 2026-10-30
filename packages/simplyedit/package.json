@@ -1,6 +1,6 @@
 {
   "name": "@muze-labs/simplyedit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Experimental SimplyEdit application layer built on SimplyFlow.",
   "type": "module",
   "private": true,
@@ -20,8 +20,8 @@
     "./sortable-list": "./src/sortable-list.mjs"
   },
   "dependencies": {
-    "@muze-labs/simplyflow-app": "0.10.1",
-    "@muze-labs/simplyflow-state": "0.10.1"
+    "@muze-labs/simplyflow-app": "0.10.2",
+    "@muze-labs/simplyflow-state": "0.10.2"
   },
   "sideEffects": false,
   "files": [

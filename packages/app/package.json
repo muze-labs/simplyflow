@@ -1,6 +1,6 @@
 {
   "name": "@muze-labs/simplyflow-app",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Application layer helpers for SimplyFlow.",
   "type": "module",
   "main": "./src/index.mjs",
@@ -22,8 +22,8 @@
     "src/"
   ],
   "dependencies": {
-    "@muze-labs/simplyflow-state": "^0.10.1",
-    "@muze-labs/simplyflow-bind": "^0.10.1"
+    "@muze-labs/simplyflow-state": "^0.10.2",
+    "@muze-labs/simplyflow-bind": "^0.10.2"
   },
   "license": "MIT",
   "repository": {

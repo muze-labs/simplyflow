@@ -1,6 +1,6 @@
 {
   "name": "@muze-labs/simplyflow-bind",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "DOM binding helpers for SimplyFlow.",
   "type": "module",
   "main": "./src/index.mjs",
@@ -16,7 +16,7 @@
     "src/"
   ],
   "dependencies": {
-    "@muze-labs/simplyflow-state": "^0.10.1"
+    "@muze-labs/simplyflow-state": "^0.10.2"
   },
   "license": "MIT",
   "repository": {

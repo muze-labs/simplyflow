@@ -207,6 +207,8 @@
     get(target, property, receiver) {
       const value = readTarget(target, property);
       notifyGet(receiver, property);
+      const descriptor = Object.getOwnPropertyDescriptor(target, property);
+      if (descriptor?.configurable === false && (Object.hasOwn(descriptor, "value") && descriptor.writable === false || Object.hasOwn(descriptor, "get") && descriptor.get === void 0)) return value;
       if (typeof value === "function") {
         if (Array.isArray(target)) {
           return wrapArrayMethod(target, property, receiver, value);
