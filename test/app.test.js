@@ -16,6 +16,50 @@ afterEach(() => {
 })
 
 describe('app API', () => {
+  it.each(['data-flow', 'data-table'])('binds %s attributes alongside SimplyEdit fields', async (attribute) => {
+    document.body.innerHTML = `<div id="app">
+      <span data-simply-field="title">Managed by SimplyEdit</span>
+      <span ${attribute}-field="title"></span>
+      <input ${attribute}-edit="title">
+      <ul ${attribute}-list="items"><template><li ${attribute}-field=":value"></li></template></ul>
+      <button data-simply-command="increment">Increment</button>
+    </div>`
+    const container = document.getElementById('app')
+    const testApp = app({
+      container,
+      attribute,
+      data: { title: 'SimplyFlow title', items: ['First'], count: 0 },
+      actions: { increment() { this.data.count++ } },
+      commands: { increment() { this.actions.increment() } }
+    })
+
+    await wait()
+    expect(testApp.binding.options.attribute).toBe(attribute)
+    expect(container.querySelector('[data-simply-field]').textContent).toBe('Managed by SimplyEdit')
+    expect(container.querySelector(`[${attribute}-field]`).textContent).toBe('SimplyFlow title')
+    expect(container.querySelector('li').textContent).toBe('First')
+    container.querySelector('button').click()
+    expect(testApp.data.count).toBe(1)
+
+    const input = container.querySelector('input')
+    input.value = 'Edited'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await wait()
+    expect(testApp.data.title).toBe('Edited')
+    expect(container.querySelector(`[${attribute}-field]`).textContent).toBe('Edited')
+
+    container.insertAdjacentHTML('beforeend', `<span ${attribute}-field="title"></span>`)
+    testApp.data.items.push('Second')
+    await wait()
+    expect(container.lastElementChild.textContent).toBe('Edited')
+    expect(Array.from(container.querySelectorAll('li'), li => li.textContent)).toEqual(['First', 'Second'])
+    expect(container.querySelector('[data-simply-field]').textContent).toBe('Managed by SimplyEdit')
+
+    testApp.destroy()
+    container.querySelector('button').click()
+    expect(testApp.data.count).toBe(1)
+  })
+
   it('uses data as the reactive application object', async () => {
     document.body.innerHTML = `<div id="app"><span data-simply-field="title"></span></div>`
     const container = document.getElementById('app')

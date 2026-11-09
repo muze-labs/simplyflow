@@ -331,6 +331,108 @@ describe('model API contract coverage', () => {
   })
 })
 
+describe('virtual-scroll range boundaries', () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.clearAllTimers()
+    jest.useRealTimers()
+  })
+
+  it.each([
+    [0, 25],
+    [1, 25],
+    [15, 14],
+    [15, 15],
+    [15, 16],
+    [15, 25],
+    [15, 30]
+  ])('renders the first rows for %i records in a viewport holding %i rows', (count, capacity) => {
+    const rows = Array.from({ length: count }, (_, index) => index + 1)
+    const container = document.createElement('div')
+    container.getBoundingClientRect = () => ({ height: capacity * 26 })
+    const m = model({ data: rows })
+
+    m.addEffect(scroll({ container, rowHeight: 26 }))
+
+    expect(m.state.options.scroll.rowCount).toBe(capacity)
+    expect(m.state.options.scroll.data).toEqual(rows)
+    expect(m.view.current).toEqual(rows.slice(0, capacity))
+  })
+
+  it('renders a short list with an explicit row count and no container', () => {
+    const rows = Array.from({ length: 15 }, (_, index) => index + 1)
+    const m = model({ data: rows })
+
+    m.addEffect(scroll({ rowCount: 25 }))
+
+    expect(m.view.current).toEqual(rows)
+  })
+
+  it('keeps all rows when the viewport grows beyond the list length', () => {
+    const rows = Array.from({ length: 15 }, (_, index) => index + 1)
+    const container = document.createElement('div')
+    let capacity = 15
+    container.getBoundingClientRect = () => ({ height: capacity * 26 })
+    const m = model({ data: rows })
+    m.addEffect(scroll({ container, rowHeight: 26 }))
+    expect(m.view.current).toEqual(rows)
+
+    capacity = 25
+    // Resize handling is supplied by the caller, as in the dashboard's observer.
+    m.state.options.scroll.rowCount = capacity
+    jest.advanceTimersByTime(100)
+
+    expect(m.view.current).toEqual(rows)
+
+    capacity = 10
+    m.state.options.scroll.rowCount = capacity
+    jest.advanceTimersByTime(100)
+
+    expect(m.view.current).toEqual(rows.slice(0, 10))
+  })
+
+  it.each([false, true])('renders every filtered row while scrolled, with column projection: %s', (projectColumns) => {
+    const rows = Array.from({ length: 40 }, (_, index) => ({ id: index + 1 }))
+    const scrollbar = document.createElement('div')
+    const m = model({ data: rows })
+    m.addEffect(filter({
+      name: 'selected',
+      enabled: false,
+      limit: 15,
+      matches(row) {
+        return row.id <= this.state.options.selected.limit
+      }
+    }))
+    m.addEffect(sort({ sortBy: 'id' }))
+    if (projectColumns) {
+      m.addEffect(columns({ id: {} }))
+    }
+    m.addEffect(scroll({ scrollbar, rowCount: 25, offset: 15, rowHeight: 26 }))
+    expect(m.view.current).toEqual(rows.slice(15))
+
+    m.state.options.selected.enabled = true
+    jest.advanceTimersByTime(250)
+
+    expect(m.view.current).toEqual(rows.slice(0, 15))
+    expect(scrollbar.style.height).toBe('390px')
+
+    m.state.options.selected.limit = 0
+    jest.advanceTimersByTime(250)
+
+    expect(m.view.current).toEqual([])
+    expect(scrollbar.style.height).toBe('0px')
+
+    m.state.options.selected.enabled = false
+    jest.advanceTimersByTime(250)
+
+    expect(m.view.current).toEqual(rows.slice(15))
+    expect(scrollbar.style.height).toBe('1040px')
+  })
+})
+
 describe('model API oversight fixes', () => {
   it('honors the documented sortDirection option and tracks later sortDirection changes', async () => {
     const m = model({

@@ -37,8 +37,9 @@
     "dist/"
   ],
   "scripts": {
-    "build": "esbuild src/index.mjs --bundle --outfile=dist/simply.flow.min.js --minify --sourcemap",
+    "build": "npm run build-dev && esbuild src/index.mjs --bundle --outfile=dist/simply.flow.min.js --minify --sourcemap",
     "build-dev": "esbuild src/index.mjs --bundle --outfile=dist/simply.flow.js",
+    "prepack": "npm run build",
     "dev": "watch 'npm run build-dev' ./src ../state/src ../bind/src ../model/src ../app/src & npx http-server ../.."
   },
   "dependencies": {

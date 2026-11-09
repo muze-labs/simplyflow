@@ -2478,7 +2478,7 @@
         let end = start + scrollOptions.rowCount;
         if (end > data.current.length) {
           end = data.current.length;
-          start = end - scrollOptions.rowCount;
+          start = Math.max(0, end - scrollOptions.rowCount);
         }
         return data.current.slice(start, end);
       }, 50);
@@ -3891,6 +3891,7 @@
   var APP_OPTIONS = [
     "container",
     "data",
+    "attribute",
     "templates",
     "styles",
     "start",
@@ -3928,6 +3929,7 @@
         switch (key) {
           case "container":
           case "data":
+          case "attribute":
           case "templates":
           case "styles":
           case "start":
@@ -3963,7 +3965,7 @@
       this.binding = bind({
         root: this.data,
         container: this.container,
-        attribute: "data-simply",
+        attribute: options.attribute || "data-simply",
         transformers: this.transformers
       });
       if (options.drags || options.drops) {

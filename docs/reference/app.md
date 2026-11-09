@@ -53,6 +53,7 @@ const contacts = app({
 | --- | --- | --- |
 | `container` | `Element` | DOM element that contains the app. Defaults to `document.body`. |
 | `data` | `object` | Application data. It is converted to a reactive signal and exposed as `app.data`. |
+| `attribute` | `string` | Binding attribute prefix, as in `simply.bind`. Defaults to `data-simply`. Command and behavior attributes retain their own prefixes. |
 | `commands` | `object` | Command functions called from `data-simply-command`. See [Commands](command.md). |
 | `actions` | `object` | Named application behavior. See [Actions](action.md). |
 | `routes` | `object` | URL routes. See [Routes](route.md). |
