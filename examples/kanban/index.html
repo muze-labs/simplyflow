@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kanban · SimplyFlow</title>
+<link rel="stylesheet" href="kanban.css">
+
+<main id="kanban">
+    <h1>Kanban</h1>
+    <p>Drag cards to reorder them or move them to another column or window. On touch, use the grip.</p>
+
+    <div class="board" data-simply-list="columns">
+        <template>
+            <section class="column">
+                <h2 data-simply-field="title"></h2>
+                <ul class="cards" data-simply-list="cards"
+                    data-simply-drop="column" data-simply-value=":value.id"
+                    data-simply-sort="vertical">
+                    <template>
+                        <li class="card" draggable="true" data-simply-drag="card"
+                            data-simply-value=":value.id">
+                            <span class="grip" data-simply-drag-handle aria-hidden="true">⠿</span>
+                            <span data-simply-field="title"></span>
+                        </li>
+                    </template>
+                </ul>
+            </section>
+        </template>
+    </div>
+</main>
+
+<script src="../../packages/simplyflow/dist/simply.flow.js"></script>
+<script class="source">
+    const boardId = crypto.randomUUID()
+    const cardFormat = 'application/x-simplyflow-kanban-card+json'
+    const channel = new BroadcastChannel('simplyflow-kanban-example')
+    const outgoing = new Map()
+
+    const app = simply.app({
+        container: document.getElementById('kanban'),
+        data: {
+            columns: [
+                {
+                    id: 'todo',
+                    title: 'To do',
+                    cards: [
+                        { id: 'sketch', title: 'Sketch the board' },
+                        { id: 'review', title: 'Review the layout' }
+                    ]
+                },
+                {
+                    id: 'doing',
+                    title: 'In progress',
+                    cards: [{ id: 'sort', title: 'Try drag and drop' }]
+                },
+                { id: 'done', title: 'Done', cards: [] }
+            ]
+        },
+        drags: {
+            card(element, id) {
+                const card = this.data.columns.flatMap(column => column.cards)
+                    .find(card => card.id === id)
+                if (!card) return false
+
+                const transferId = crypto.randomUUID()
+                outgoing.set(id, transferId)
+                const payload = JSON.stringify({
+                    type: cardFormat, boardId, transferId, id, title: card.title
+                })
+
+                return {
+                    effects: ['move'],
+                    meta: { boardId, id },
+                    data: { [cardFormat]: payload, 'text/plain': payload }
+                }
+            }
+        },
+        drops: {
+            column: {
+                effects: ['move'],
+                accepts(element, columnId, drag) {
+                    return drag.types.includes(cardFormat) || drag.types.includes('text/plain')
+                },
+                drop(element, columnId, drag) {
+                    let card
+                    try {
+                        card = JSON.parse(drag.data[cardFormat] || drag.data['text/plain'])
+                    } catch {
+                        return
+                    }
+
+                    if (card?.type !== cardFormat ||
+                        typeof card.boardId !== 'string' ||
+                        typeof card.transferId !== 'string' ||
+                        typeof card.id !== 'string' ||
+                        typeof card.title !== 'string') return
+
+                    if (card.boardId === boardId) {
+                        if (outgoing.get(card.id) !== card.transferId) return
+                        outgoing.delete(card.id)
+                        this.actions.moveCard(card.id, columnId, drag.before)
+                    } else if (this.actions.insertCard(card, columnId, drag.before)) {
+                        channel.postMessage({
+                            boardId: card.boardId, id: card.id, transferId: card.transferId
+                        })
+                    }
+                }
+            }
+        },
+        actions: {
+            insertCard(card, columnId, before) {
+                const target = this.data.columns.find(column => column.id === columnId)
+                if (!target) return false
+
+                const index = before === null
+                    ? target.cards.length
+                    : target.cards.findIndex(item => item.id === before)
+                if (index === -1) return false
+
+                const cards = [...target.cards]
+                cards.splice(index, 0, { id: crypto.randomUUID(), title: card.title })
+                target.cards = cards
+                return true
+            },
+
+            moveCard(id, columnId, before) {
+                const source = this.data.columns.find(column => column.cards.some(card => card.id === id))
+                const target = this.data.columns.find(column => column.id === columnId)
+                if (!source || !target || id === before) return
+
+                const card = source.cards.find(card => card.id === id)
+                const remaining = source.cards.filter(card => card.id !== id)
+                const destination = source.id === target.id ? remaining : [...target.cards]
+                const index = before === null
+                    ? destination.length
+                    : destination.findIndex(card => card.id === before)
+                if (index === -1) return
+
+                destination.splice(index, 0, card)
+                if (source.id !== target.id) source.cards = remaining
+                target.cards = destination
+            }
+        }
+    })
+
+    channel.addEventListener('message', ({ data }) => {
+        if (data?.boardId !== boardId || typeof data.transferId !== 'string' ||
+            outgoing.get(data.id) !== data.transferId) return
+
+        outgoing.delete(data.id)
+        const source = app.data.columns.find(column => column.cards.some(card => card.id === data.id))
+        if (source) source.cards = source.cards.filter(card => card.id !== data.id)
+    })
+</script>
+</html>

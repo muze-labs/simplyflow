@@ -4,6 +4,7 @@ import { routes } from './route.mjs'
 import { commands, destroyCommands } from './command.mjs'
 import { actions } from './action.mjs'
 import { shortcuts, destroyShortcuts, accesskeys, destroyAccesskeys } from './shortcut.mjs'
+import { dragdrop } from './dragdrop.mjs'
 import { behaviors } from './behavior.mjs'
 import { includes } from './include.mjs'
 import { closest } from './suggest.mjs'
@@ -19,6 +20,8 @@ const APP_OPTIONS = [
     'behaviors',
     'baseURL',
     'commands',
+    'drags',
+    'drops',
     'shortcuts',
     'routes',
     'actions',
@@ -96,6 +99,10 @@ class SimplyApp
             transformers: this.transformers
         })
 
+        if (options.drags || options.drops) {
+            this.dragdrop = dragdrop({ app: this, drags: options.drags, drops: options.drops })
+        }
+
         this.includes = includes({ container: this.container })
 
         this.accesskeys = accesskeys({ app: this, container: this.container })
@@ -109,6 +116,9 @@ class SimplyApp
     destroy()
     {
         this.destroyed = true
+        if (this.dragdrop) {
+            this.dragdrop.destroy()
+        }
         if (this.binding) {
             this.binding.destroy()
             this.binding = undefined

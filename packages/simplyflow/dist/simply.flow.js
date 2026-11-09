@@ -3349,6 +3349,249 @@
     accesskeyState.delete(accesskeyApi);
   }
 
+  // ../app/src/dragdrop.mjs
+  var sourceSelector = "[data-simply-drag]";
+  var targetSelector = "[data-simply-drop]";
+  var handleSelector = "[data-simply-drag-handle]";
+  var metadataPrefix = "application/x-simplyflow-drag-meta-v1-";
+  var maxMetadataBytes = 512;
+  var nativeEffects = {
+    none: [],
+    copy: ["copy"],
+    move: ["move"],
+    link: ["link"],
+    copyMove: ["copy", "move"],
+    copyLink: ["copy", "link"],
+    linkMove: ["move", "link"],
+    all: ["copy", "link", "move"],
+    uninitialized: ["copy", "link", "move"]
+  };
+  function encodeMetadata(meta2) {
+    const bytes = new TextEncoder().encode(JSON.stringify(meta2));
+    if (bytes.length > maxMetadataBytes) {
+      throw new RangeError("Drag metadata exceeds 512 UTF-8 bytes");
+    }
+    return metadataPrefix + Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  function readMetadata(types) {
+    const markers = types.filter((type) => type.startsWith(metadataPrefix));
+    if (markers.length !== 1) return;
+    const hex = markers[0].slice(metadataPrefix.length);
+    if (!hex.length || hex.length > 2 * maxMetadataBytes || hex.length % 2 || /[^0-9a-f]/.test(hex)) return;
+    try {
+      const bytes = Uint8Array.from(hex.match(/../g), (byte) => Number.parseInt(byte, 16));
+      const meta2 = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+      if (meta2 && typeof meta2 === "object" && !Array.isArray(meta2)) return meta2;
+    } catch {
+    }
+  }
+  function dragdrop({ app: app2, container = app2.container, drags = {}, drops = {} }) {
+    const document2 = container.ownerDocument;
+    const listeners = new AbortController();
+    let nativeSource;
+    let touch;
+    let preview;
+    function listen(type, handler, options) {
+      container.addEventListener(type, handler, { ...options, signal: listeners.signal });
+    }
+    function value(element2) {
+      return element2.hasAttribute("data-simply-value-path") ? path_default.get(app2.data, element2.dataset.simplyValuePath) : element2.dataset.simplyValue;
+    }
+    function describe(source, event) {
+      const name = source.dataset.simplyDrag;
+      if (!Object.hasOwn(drags, name)) return;
+      const description = drags[name].call(app2, source, value(source), event);
+      if (!description) return;
+      const { meta: meta2, data = {}, effects = ["copy"] } = description;
+      const allowed = Object.keys(nativeEffects).find((key) => key !== "uninitialized" && nativeEffects[key].length === effects.length && nativeEffects[key].every((effect2) => effects.includes(effect2)));
+      if (!allowed || allowed === "none") return;
+      const formats = Object.fromEntries(Object.entries(data).map(([type, payload]) => {
+        type = type.toLowerCase();
+        if (type === "text") type = "text/plain";
+        if (type === "url") type = "text/uri-list";
+        if (type.startsWith(metadataPrefix) || typeof payload !== "string") {
+          throw new TypeError("Drag data must map non-reserved formats to strings");
+        }
+        return [type, payload];
+      }));
+      if (meta2 !== void 0) formats[encodeMetadata(meta2)] = "1";
+      return { formats, allowed };
+    }
+    function readDrag(types, allowed) {
+      return {
+        meta: readMetadata(types),
+        types: types.filter((type) => !type.startsWith(metadataPrefix)),
+        effects: nativeEffects[allowed] ?? nativeEffects.uninitialized
+      };
+    }
+    function destination(node, drag, event, source, preferred) {
+      let target = node?.closest?.(targetSelector);
+      while (target && container.contains(target)) {
+        const name = target.dataset.simplyDrop;
+        const handler = Object.hasOwn(drops, name) ? drops[name] : void 0;
+        if (typeof handler?.drop === "function") {
+          const effects = drag.effects.filter((effect3) => !handler.effects || handler.effects.includes(effect3));
+          const effect2 = [preferred, source ? "move" : "copy", ...effects].find((candidate) => effects.includes(candidate));
+          if (effect2) {
+            const targetValue = value(target);
+            const context = { ...drag, effect: effect2 };
+            const before = insertion(target, source, event);
+            if (before !== void 0) context.before = before ? value(before) : null;
+            if (!handler.accepts || handler.accepts.call(app2, target, targetValue, context, event) === true) {
+              return { target, targetValue, handler, context, before };
+            }
+          }
+        }
+        target = target.parentElement?.closest(targetSelector);
+      }
+    }
+    function insertion(target, source, event) {
+      const axis = target.dataset.simplySort;
+      if (axis !== "vertical" && axis !== "horizontal") return;
+      const horizontal = axis === "horizontal";
+      for (const card of target.children) {
+        if (card === source || !card.matches(sourceSelector) || value(card) == null) continue;
+        const rect = card.getBoundingClientRect();
+        const midpoint = horizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
+        if ((horizontal ? event.clientX : event.clientY) < midpoint) return card;
+      }
+      return null;
+    }
+    function show(next) {
+      if (preview?.target === next?.target && preview?.before === next?.before) return;
+      preview?.target.removeAttribute("data-simply-drag-over");
+      preview?.target.removeAttribute("data-simply-drop-end");
+      preview?.before?.removeAttribute("data-simply-drop-before");
+      preview = next;
+      next?.target.setAttribute("data-simply-drag-over", "");
+      if (next?.before === null) next.target.setAttribute("data-simply-drop-end", "");
+      next?.before?.setAttribute("data-simply-drop-before", "");
+    }
+    function report(error, event) {
+      if (app2.onError) app2.onError.call(app2, error, event);
+      else console.error(error);
+    }
+    function commit(match, data, event) {
+      const { target, targetValue, handler, context } = match;
+      try {
+        const result = handler.drop.call(app2, target, targetValue, { ...context, data }, event);
+        Promise.resolve(result).catch((error) => report(error, event));
+      } catch (error) {
+        report(error, event);
+      }
+    }
+    function nativeTarget(event) {
+      const dt = event.dataTransfer;
+      if (!dt) return;
+      const drag = readDrag(Array.from(dt.types), dt.effectAllowed);
+      const preferred = event.ctrlKey ? "copy" : event.shiftKey ? "move" : dt.dropEffect;
+      return destination(event.target, drag, event, nativeSource, preferred);
+    }
+    function nativeHover(event) {
+      const match = nativeTarget(event);
+      show(match);
+      if (!match) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = match.context.effect;
+    }
+    function cancel() {
+      const previous = touch;
+      touch = void 0;
+      nativeSource = void 0;
+      show();
+      if (previous?.handle.hasPointerCapture(previous.id)) {
+        previous.handle.releasePointerCapture(previous.id);
+      }
+    }
+    listen("dragstart", (event) => {
+      const source = event.target.closest?.(sourceSelector);
+      if (!source || !container.contains(source) || !event.dataTransfer) return;
+      cancel();
+      try {
+        const description = describe(source, event);
+        if (!description) {
+          event.preventDefault();
+          return;
+        }
+        const dt = event.dataTransfer;
+        dt.clearData();
+        for (const [type, payload] of Object.entries(description.formats)) dt.setData(type, payload);
+        dt.effectAllowed = description.allowed;
+        nativeSource = source;
+      } catch (error) {
+        event.preventDefault();
+        report(error, event);
+      }
+    });
+    listen("dragenter", nativeHover);
+    listen("dragover", nativeHover);
+    listen("dragleave", (event) => {
+      if (!preview?.target.contains(event.relatedTarget)) show();
+    });
+    listen("drop", (event) => {
+      const match = nativeTarget(event);
+      cancel();
+      if (!match) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = match.context.effect;
+      const data = Object.fromEntries(match.context.types.filter((type) => type !== "Files").map((type) => [type, event.dataTransfer.getData(type)]));
+      commit(match, data, event);
+    });
+    document2.addEventListener("dragend", cancel, { signal: listeners.signal });
+    listen("pointerdown", (event) => {
+      if (event.pointerType !== "touch" || !event.isPrimary || touch) return;
+      const handle = event.target.closest?.(handleSelector);
+      const source = handle?.closest(sourceSelector);
+      if (!source || !container.contains(source)) return;
+      handle.setPointerCapture(event.pointerId);
+      touch = { handle, source, id: event.pointerId, x: event.clientX, y: event.clientY };
+    });
+    function touchTarget(event) {
+      const node = document2.elementFromPoint(event.clientX, event.clientY);
+      return destination(node, touch.drag, event, touch.source, "move");
+    }
+    listen("pointermove", (event) => {
+      if (touch?.id !== event.pointerId) return;
+      if (!touch.drag) {
+        if (Math.hypot(event.clientX - touch.x, event.clientY - touch.y) < 6) return;
+        try {
+          const description = describe(touch.source, event);
+          if (!description) return cancel();
+          touch.drag = readDrag(Object.keys(description.formats), description.allowed);
+          touch.data = Object.fromEntries(touch.drag.types.map((type) => [type, description.formats[type]]));
+        } catch (error) {
+          cancel();
+          report(error, event);
+          return;
+        }
+      }
+      event.preventDefault();
+      show(touchTarget(event));
+    });
+    listen("pointerup", (event) => {
+      if (touch?.id !== event.pointerId) return;
+      const match = touch.drag && touchTarget(event);
+      const data = touch.data;
+      cancel();
+      if (match) commit(match, data, event);
+    });
+    for (const type of ["pointercancel", "lostpointercapture"]) {
+      listen(type, (event) => {
+        if (touch?.id === event.pointerId) cancel();
+      });
+    }
+    listen("keydown", (event) => {
+      if (event.key === "Escape") cancel();
+    });
+    return {
+      cancel,
+      destroy() {
+        listeners.abort();
+        cancel();
+      }
+    };
+  }
+
   // ../app/src/behavior.mjs
   var BEHAVIOR_SELECTOR = "[data-simply-behavior]";
   var SimplyBehaviors = class {
@@ -3656,6 +3899,8 @@
     "behaviors",
     "baseURL",
     "commands",
+    "drags",
+    "drops",
     "shortcuts",
     "routes",
     "actions",
@@ -3721,6 +3966,9 @@
         attribute: "data-simply",
         transformers: this.transformers
       });
+      if (options.drags || options.drops) {
+        this.dragdrop = dragdrop({ app: this, drags: options.drags, drops: options.drops });
+      }
       this.includes = includes({ container: this.container });
       this.accesskeys = accesskeys({ app: this, container: this.container });
     }
@@ -3729,6 +3977,9 @@
     }
     destroy() {
       this.destroyed = true;
+      if (this.dragdrop) {
+        this.dragdrop.destroy();
+      }
       if (this.binding) {
         this.binding.destroy();
         this.binding = void 0;
