@@ -22,6 +22,7 @@ Those split packages are pure ESM and marked side-effect-free. The main `@muze-l
 - [Shortcuts](shortcut.md) — keyboard shortcuts and access keys.
 - [Behaviors](behavior.md) — attaching reusable JavaScript behavior to DOM elements.
 - [Includes](include.md) — app-scoped HTML includes and the lower-level include helpers.
+- [Drag and Drop](dragdrop.md) - declarative drag and drop handling.
 
 ## Data, rendering and advanced modules
 
