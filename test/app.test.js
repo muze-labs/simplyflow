@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { app } from '@muze-labs/simplyflow-app'
+import { app, mergeable } from '@muze-labs/simplyflow-app'
 
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -288,7 +288,7 @@ describe('app API', () => {
 
   it('retains same-named components, top-level lifecycle and service identity', () => {
     const nested = { transformers: { label() {} } }
-    const shared = { details: { base: true } }
+    const shared = mergeable({ details: mergeable({ base: true }) })
     const parent = {
       components: { editor: nested },
       api: shared,
@@ -301,7 +301,7 @@ describe('app API', () => {
     const onError = jest.fn()
     const testApp = app({
       components: { parent, editor },
-      api: { details: { local: true } },
+      api: mergeable({ details: mergeable({ local: true }) }),
       service,
       start,
       onError
@@ -325,8 +325,8 @@ describe('app API', () => {
   })
 
   it('restores custom properties and nested service methods from current definitions', () => {
-    const shared = { api: { labels: { format: () => 'shared' } }, title: 'component' }
-    const api = { labels: { alternate: () => 'alternate' } }
+    const shared = { api: mergeable({ labels: mergeable({ format: () => 'shared' }) }), title: 'component' }
+    const api = mergeable({ labels: mergeable({ alternate: () => 'alternate' }) })
     const testApp = app({ components: { shared }, api, title: 'top' })
     try {
       const local = () => 'local'
@@ -358,11 +358,12 @@ describe('app API', () => {
 
   it.each(['api', 'commands'])('keeps references to %s live through whole-map edits', name => {
     const original = { label() { return 'first' } }
-    const component = { [name]: original }
+    const component = { [name]: name === 'api' ? mergeable(original) : original }
     const testApp = app({ components: { component } })
     try {
       const held = testApp[name]
-      testApp[name] = { preview() { return 'preview' } }
+      const preview = { preview() { return 'preview' } }
+      testApp[name] = name === 'api' ? mergeable(preview) : preview
       expect(testApp[name]).toBe(held)
       expect(held.preview()).toBe('preview')
       expect(held.label).toBeUndefined()
@@ -390,25 +391,50 @@ describe('app API', () => {
     }
   })
 
-  it('keeps nested and runtime-added plain maps live through replacement', () => {
-    const tool = { labels: { save: 'Save' } }
+  it('keeps nested and runtime-added marked maps live through replacement', () => {
+    const tool = mergeable({ labels: mergeable({ save: 'Save' }) })
     const testApp = app({ tool })
     try {
       const labels = testApp.tool.labels
-      testApp.tool = { labels: { preview: 'Preview' } }
+      testApp.tool = mergeable({ labels: mergeable({ preview: 'Preview' }) })
       expect(testApp.tool.labels).toBe(labels)
       expect(labels).toEqual({ preview: 'Preview' })
       delete testApp.tool
       expect(testApp.tool.labels).toBe(labels)
       expect(labels.save).toBe('Save')
 
-      testApp.extra = { title: 'Initial' }
+      testApp.extra = mergeable({ title: 'Initial' })
       const extra = testApp.extra
-      testApp.extra = { title: 'Edited' }
+      testApp.extra = mergeable({ title: 'Edited' })
       expect(extra.title).toBe('Edited')
       delete testApp.extra
       expect(Object.hasOwn(testApp, 'extra')).toBe(false)
       expect(Object.keys(extra)).toEqual([])
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('dispatches an authored command named call through the button and public controller', () => {
+    document.body.innerHTML = '<button data-simply-command="call">Call</button>'
+    const original = jest.fn()
+    const replacement = jest.fn()
+    const editor = { commands: { call: original } }
+    const testApp = app({ components: { editor } })
+    try {
+      const button = document.querySelector('button')
+      button.click()
+      expect(original).toHaveBeenCalledTimes(1)
+      expect(original.mock.contexts[0]).toBe(testApp)
+      expect(original.mock.calls[0][0]).toBe(button)
+      expect(testApp.commands.call).toBe(original)
+      testApp.commands.call = replacement
+      button.click()
+      expect(replacement).toHaveBeenCalledTimes(1)
+      delete testApp.commands.call
+      button.click()
+      expect(original).toHaveBeenCalledTimes(2)
+      expect(editor.commands.call).toBe(original)
     } finally {
       testApp.destroy()
     }
@@ -507,24 +533,114 @@ describe('app API', () => {
     expect(calls).toEqual(['local', 'stop local', 'original', 'stop original'])
   })
 
-  it('isolates plain services passed directly to two apps', () => {
-    const api = { label: () => 'source', names: ['original'] }
+  it('keeps unmarked services intact, including accessors, hidden state and symbols', () => {
+    const secret = Symbol('secret')
+    const reads = jest.fn()
+    const api = {
+      get label() { reads(); return this[secret] },
+      set label(value) { this[secret] = value }
+    }
+    Object.defineProperty(api, 'hidden', { value: 42 })
+    api[secret] = 'original'
+    const editor = { api: { earlier: true }, tools: mergeable({ service: { earlier: true } }) }
+    const testApp = app({ components: { editor }, api, tools: mergeable({ service: api }) })
+    try {
+      expect(reads).not.toHaveBeenCalled()
+      expect(testApp.api).toBe(api)
+      expect(testApp.tools.service).toBe(api)
+      testApp.tools.service.label = 'updated'
+      expect(testApp.api.label).toBe('updated')
+      expect(testApp.api.hidden).toBe(42)
+      expect(testApp.api[secret]).toBe('updated')
+      testApp.api = mergeable({ different: true })
+      delete testApp.api
+      expect(testApp.api).toBe(api)
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('replaces a marked contribution with an unmarked service without reading its members', () => {
+    const get = jest.fn(() => 'live')
+    const service = Object.freeze(Object.defineProperty({}, 'label', { get }))
+    const tools = mergeable({ earlier: true })
+    const testApp = app({ components: { editor: { api: tools } }, api: service })
+    try {
+      expect(testApp.api).toBe(service)
+      expect(get).not.toHaveBeenCalled()
+      expect(() => mergeable(service)).toThrow(/non-configurable property "label"/)
+      delete testApp.components.app.api
+      delete testApp.api
+      expect(testApp.api.earlier).toBe(true)
+      expect(get).not.toHaveBeenCalled()
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('composes top-level accessors without evaluating them during startup or assignment', () => {
+    const get = jest.fn(function() { return this.data.title })
+    const set = jest.fn(function(value) { this.data.title = value })
+    const source = { data: { title: 'initial' } }
+    Object.defineProperty(source, 'title', { get, set, configurable: true })
+    const testApp = app(source)
+    try {
+      expect(get).not.toHaveBeenCalled()
+      testApp.title = 'updated'
+      expect(get).not.toHaveBeenCalled()
+      expect(set.mock.contexts[0]).toBe(testApp)
+      expect(testApp.title).toBe('updated')
+      expect(get.mock.contexts[0]).toBe(testApp)
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('preserves descriptors across marked-map composition, replacement and restoration', () => {
+    const hidden = Symbol('hidden')
+    const get = jest.fn(function() { return this.prefix + '!' })
+    const set = jest.fn(function(value) { this.prefix = value })
+    const base = mergeable({ prefix: 'base' })
+    Object.defineProperty(base, 'label', { get, set, configurable: true })
+    Object.defineProperty(base, hidden, { value: 42, configurable: true })
+    const testApp = app({ components: { editor: { api: base } }, api: mergeable({ prefix: 'top' }) })
+    try {
+      const held = testApp.api
+      expect(get).not.toHaveBeenCalled()
+      expect(Object.getOwnPropertyDescriptor(held, 'label')).toEqual(
+        Object.getOwnPropertyDescriptor(base, 'label'))
+      expect(held.label).toBe('top!')
+      held.label = 'edited'
+      expect(set.mock.contexts[0]).toBe(held)
+      expect(base.prefix).toBe('base')
+      expect(held[hidden]).toBe(42)
+      expect(Reflect.set(held, hidden, 0)).toBe(false)
+      testApp.api = mergeable({ prefix: 'replaced' })
+      expect(held.label).toBeUndefined()
+      delete testApp.api
+      expect(held.label).toBe('top!')
+      delete held.label
+      expect(Object.getOwnPropertyDescriptor(held, 'label').get).toBe(get)
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('preserves unmarked leaves and self-references inside an opted-in map', () => {
+    const names = ['original']
+    const api = mergeable({ label: () => 'source', names })
     api.self = api
     const first = app({ api })
     const second = app({ api })
     try {
       first.api.label = () => 'local'
-      first.api.names.pop()
       expect(first.api.self).toBe(first.api)
+      expect(first.api.names).toBe(names)
       expect(second.api.label()).toBe('source')
       expect(api.label()).toBe('source')
-      expect(second.api.names).toEqual(['original'])
-      expect(api.names).toEqual(['original'])
       api.label = () => 'revised'
       delete first.api.label
-      delete first.api.names
       expect(first.api.label()).toBe('revised')
-      expect(first.api.names).toEqual(['original'])
     } finally {
       first.destroy()
       second.destroy()
@@ -1130,7 +1246,7 @@ describe('app integration details', () => {
 
     await testApp.actions.loadItem()
 
-    expect(testApp.api).not.toBe(api)
+    expect(testApp.api).toBe(api)
     expect(testApp.api.get).toBe(api.get)
     expect(testApp.data.item).toEqual({ path: 'foo.json', title: 'Loaded' })
     expect(warn).not.toHaveBeenCalled()

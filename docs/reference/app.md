@@ -139,23 +139,45 @@ hook and `renderNewsLabel`. Replacing the named entry temporarily replaces the
 whole transformer. Deleting it merges that name again, including any deliberate
 edits to the source definitions. An entry added only to the running app
 disappears on deletion. Binding uses the result on its next render or extraction.
-The same rule applies to merged properties throughout the app. For example,
-assign `news.commands.save` or `news.api.formatLabel` to change that entry for
-one app. Delete the entry to restore it from the current component definitions.
-Deleting a property from `news.data` removes the value from reactive state.
 
-Plain objects supplied as top-level services also become editable definition
-maps. If you pass `{ api }` to `simply.app()`, edits to `news.api.formatLabel`
-leave the supplied plain object intact. A reference such as `const api = news.api`
-continues to see the current entries after assigning a new plain object to
-`news.api` or deleting the edit. This also applies to nested definition maps
-and plain objects added while the app runs. A supplied class instance retains its
-identity. Arrays have ordinary array deletion and can be restored by deleting
-the property that contains them.
+## Custom definition maps
+
+`simply.mergeable(object)` marks a custom object for composition and returns
+the same object. The module export is `mergeable`. Built-in sections such as
+`commands` and `transformers` already describe maps and keep their usual syntax.
+
+```js
+const editor = {
+  api: simply.mergeable({ formatLabel, saveDraft })
+}
+
+const news = simply.app({
+  components: { editor },
+  api: simply.mergeable({ formatLabel: formatNewsLabel }),
+  storage: storageService
+})
+```
+
+Here `news.api` has both methods. Assigning `news.api.formatLabel` edits the
+running app. Deleting the edit restores the current definition. Assign another
+marked map to replace the whole map while keeping existing references live.
+
+Unmarked custom objects and arrays are used by reference. In this example
+`news.storage === storageService`, including its getters, setters and internal
+state. The marker applies only to its own map. Mark a nested custom map separately
+when its members should also compose. If a later contribution at the same
+property is unmarked, it supplies the whole value.
+
+Editable maps preserve accessors, enumerability, writability and symbol keys.
+Their own entries must be configurable so whole-map replacement and restoration
+can remove them. An unmarked service can contain non-configurable properties.
+Reactive state lives on `news.data`, where deleting a property removes its value.
 
 Installed commands, shortcuts, routes and drag/drop handlers use the current
 definition on their next dispatch. Behaviors use it when they next start.
 Edits to template and style definitions update their installed elements.
+Already-rendered instances keep their existing markup when a template changes.
+Refreshing those instances is [planned](../../MUZE_ALIGNMENT.md#refresh-mounted-instances-after-a-template-definition-changes).
 The container and binding attribute select where to mount at startup.
 
 ## Binding transformers

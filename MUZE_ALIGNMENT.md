@@ -154,6 +154,19 @@ Beginner documentation now treats `data-simply-list` as the normal collection co
 
 **Status:** Open
 
+### Refresh mounted instances after a template definition changes
+
+**Status** — Planned
+
+Editing or restoring `app.templates[name]` updates the installed
+`<template>`. Instances already rendered from its previous contents keep their
+existing markup. Track which mounted instances use each template and refresh
+them when its definition changes.
+
+Verify replacement and restoration on a populated list. Preserve the bound
+data, keyboard focus and pending field edits, release bindings for removed
+nodes, and leave instances of unrelated templates alone.
+
 ## Open questions
 
 - Is SimplyFlow part of Muze’s core stack, or a transitional dependency for current apps?

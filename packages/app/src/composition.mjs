@@ -29,136 +29,146 @@ function isRecord(value)
     return prototype === null || prototype === Object.prototype
 }
 
-// Only copy the paths where two definitions actually merge. Values such as
-// a DOM container or an application service keep their own identity.
-function mergeValue(previous, value)
-{
-    let merged
-    if (Array.isArray(previous) && Array.isArray(value)) {
-        merged = previous.slice()
-    } else if (isRecord(previous) && isRecord(value)) {
-        merged = { ...previous }
-    } else {
-        return value
-    }
-    for (const key of Object.keys(value)) {
-        if (key !== '__proto__' && value[key] !== null) {
-            const earlier = Object.hasOwn(merged, key) ? merged[key] : undefined
-            merged[key] = mergeValue(earlier, value[key])
-        }
-    }
-    return merged
-}
-
-function mergeTransformer(previous, entry)
-{
-    if (!entry || typeof entry !== 'object') {
-        return entry
-    }
-    const result = Object.create(Object.getPrototypeOf(entry))
-    if (previous && typeof previous === 'object') {
-        Object.assign(result, previous)
-        // Hooks can also be methods on a transformer's prototype.
-        for (const phase of ['render', 'extract']) {
-            if (phase in entry) {
-                result[phase] = entry[phase]
-            } else if (phase in previous) {
-                result[phase] = previous[phase]
-            }
-        }
-    }
-    return Object.assign(result, entry)
-}
-
-const missing = Symbol('missing definition')
+// Mark by identity so a custom map keeps its original keys and descriptors.
+const markedMaps = new WeakSet()
 const records = new WeakMap()
+const sections = new Set([
+    'actions', 'behaviors', 'commands', 'drags', 'drops', 'routes',
+    'shortcuts', 'styles', 'templates', 'transformers'
+])
+const groupedSections = new Set(['drops', 'shortcuts', 'transformers'])
 
-// Resolve one top-level option using the same precedence at startup and on
-// deletion. Transformers additionally support merging individual hook methods.
+export function mergeable(object)
+{
+    if (!isRecord(object)) {
+        throw new TypeError('simplyflow/app: mergeable() expects an object literal or a null-prototype map')
+    }
+    mapDescriptors(object)
+    markedMaps.add(object)
+    return object
+}
+
+function childShape(shape, key)
+{
+    if (shape === 'app' && sections.has(key)) {
+        return groupedSections.has(key) ? 'groups' : 'map'
+    }
+    if (shape === 'groups') {
+        return 'map'
+    }
+}
+
+function composes(value, shape)
+{
+    return markedMaps.has(value) || (shape && isRecord(value))
+}
+
+function mapDescriptors(source)
+{
+    const descriptors = Object.getOwnPropertyDescriptors(source)
+    for (const key of Reflect.ownKeys(descriptors)) {
+        if (!descriptors[key].configurable) {
+            throw new TypeError(
+                `simplyflow/app: cannot compose non-configurable property "${String(key)}" in an editable map`
+            )
+        }
+    }
+    return descriptors
+}
+
+// Merge data properties only where both values opt in. Accessors and opaque
+// values are contributed intact by the last definition that supplies them.
+function mergeDescriptor(previous, next, shape, seen = new WeakMap())
+{
+    if (!composes(previous?.value, shape) || !composes(next.value, shape) ||
+        previous.value === next.value) {
+        return next
+    }
+    const earlier = previous.value
+    const later = next.value
+    let pairs = seen.get(earlier)
+    if (!pairs) {
+        pairs = new WeakMap()
+        seen.set(earlier, pairs)
+    }
+    if (pairs.has(later)) {
+        return { ...next, value: pairs.get(later) }
+    }
+
+    const merged = Object.create(Object.getPrototypeOf(later), mapDescriptors(earlier))
+    pairs.set(later, merged)
+    markedMaps.add(merged)
+    const descriptors = mapDescriptors(later)
+    for (const key of Reflect.ownKeys(descriptors)) {
+        const original = Object.getOwnPropertyDescriptor(merged, key)
+        Object.defineProperty(merged, key,
+            mergeDescriptor(original, descriptors[key], childShape(shape, key), seen))
+    }
+    return { ...next, value: merged }
+}
+
+function dataProperty(value)
+{
+    return { value, enumerable: true, writable: true, configurable: true }
+}
+
 function mergedOption(definitions, key, hasComponents)
 {
     if (['components', 'data', '__proto__', 'prototype'].includes(key)) {
-        return missing
+        return
     }
-    let result = missing
+    let result
     for (const [name, definition] of definitions) {
-        if (!Object.hasOwn(definition, key)) {
-            continue
-        }
         if (name !== 'app' && (key === 'start' || key === 'onError')) {
             continue
         }
-        const value = definition[key]
-        if (value === null && hasComponents) {
+        const descriptor = Object.getOwnPropertyDescriptor(definition, key)
+        if (!descriptor || (descriptor.value === null && hasComponents)) {
             continue
         }
-        if (key === 'transformers') {
-            if (result === missing) {
-                result = Object.create(null)
-            }
-            for (const [entry, hooks] of Object.entries(value || {})) {
-                result[entry] = mergeTransformer(result[entry], hooks)
-            }
-        } else {
-            result = mergeValue(result === missing ? undefined : result, value)
-        }
+        result = mergeDescriptor(result, descriptor, childShape('app', key))
     }
-    if (key === 'container' && (result === missing || !result)) {
-        return document.body
+    if (key === 'container' && (!result || ('value' in result && !result.value))) {
+        return dataProperty(document.body)
     }
     return result
 }
 
-// A realized record owns its edits. Nested records are materialized on first
-// use, so composing an app does not walk through every service at startup.
-function editableRecord(source, original, ancestor)
+// An editable map owns its property descriptors. Nested services stay opaque
+// unless the author marks them or a built-in section defines a map there.
+function editableRecord(source, original, shape, ancestor)
 {
-    const array = Array.isArray(source)
-    const target = array ? source.slice() : { ...source }
+    const target = Object.create(Object.getPrototypeOf(source), mapDescriptors(source))
     const children = new Map()
-    const arrays = new Map()
     const location = { source, ancestor }
     const record = {}
 
-    function change(key, value) {
-        if (value === missing) {
-            return Reflect.deleteProperty(target, key)
-        }
-        if (array && key === 'length') {
-            return Reflect.set(target, key, value)
-        }
-        return Reflect.defineProperty(target, key, {
-            value, enumerable: true, writable: true, configurable: true
-        })
-    }
-
-    function updateChild(key, value) {
-        arrays.delete(key)
+    function updateChild(key, descriptor) {
         const child = children.get(key)
+        const value = descriptor?.value
         if (child && child !== value) {
-            // A captured view follows this property across whole-map edits.
-            // Empty it while the property is absent or holds another type.
-            records.get(child).replace(isRecord(value) ? value : {})
+            const next = composes(value, childShape(shape, key)) ? value : {}
+            records.get(child).replace(next)
         }
     }
 
-    function write(key, value) {
-        const previous = Object.getOwnPropertyDescriptor(target, key)
-        if (children.has(key) && children.get(key) === value) {
-            return true
+    function apply(key, descriptor) {
+        if (descriptor) {
+            return Reflect.defineProperty(target, key, descriptor)
         }
-        if (!change(key, value)) {
+        return Reflect.deleteProperty(target, key)
+    }
+
+    function write(key, descriptor) {
+        const previous = Object.getOwnPropertyDescriptor(target, key)
+        if (!apply(key, descriptor)) {
             return false
         }
         try {
-            updateChild(key, value)
+            updateChild(key, descriptor)
             record.changed?.([key])
         } catch (error) {
-            if (previous) {
-                Object.defineProperty(target, key, previous)
-            } else {
-                Reflect.deleteProperty(target, key)
-            }
+            apply(key, previous)
             throw error
         }
         return true
@@ -166,61 +176,72 @@ function editableRecord(source, original, ancestor)
 
     const view = new Proxy(target, {
         get(target, key, receiver) {
-            const value = Reflect.get(target, key, receiver)
-            if (!Object.hasOwn(target, key) || !(isRecord(value) || Array.isArray(value))) {
-                return value
+            const descriptor = Object.getOwnPropertyDescriptor(target, key)
+            const nestedShape = childShape(shape, key)
+            if (!descriptor || !composes(descriptor.value, nestedShape)) {
+                return Reflect.get(target, key, receiver)
             }
-            // A service can refer back to itself or a parent service.
+            const value = descriptor.value
             for (let parent = location; parent; parent = parent.ancestor) {
                 if (parent.source === value || parent.view === value) {
                     return parent.view
                 }
             }
-            const cache = Array.isArray(value) ? arrays : children
-            if (!cache.has(key)) {
+            if (!children.has(key)) {
                 const child = editableRecord(value, name => {
-                    const parent = original(key)
-                    return parent && Object.hasOwn(parent, name) ? parent[name] : missing
-                }, location)
-                cache.set(key, child)
+                    const parent = original(key)?.value
+                    if (composes(parent, nestedShape)) {
+                        return Object.getOwnPropertyDescriptor(parent, name)
+                    }
+                }, nestedShape, location)
+                children.set(key, child)
             }
-            return cache.get(key)
+            return children.get(key)
         },
-        set(target, key, value) {
-            return write(key, value)
+        set(target, key, value, receiver) {
+            const descriptor = Object.getOwnPropertyDescriptor(target, key)
+            if (descriptor && !('value' in descriptor)) {
+                if (!descriptor.set) {
+                    return false
+                }
+                descriptor.set.call(receiver, value)
+                record.changed?.([key])
+                return true
+            }
+            if (descriptor && !descriptor.writable) {
+                return false
+            }
+            if (children.has(key) && children.get(key) === value) {
+                return true
+            }
+            return write(key, descriptor ? { ...descriptor, value } : dataProperty(value))
         },
         deleteProperty(target, key) {
-            return write(key, array ? missing : original(key))
+            return write(key, original(key))
         }
     })
 
-    // Replace the contents in declaration order and notify observers once.
     record.replace = source => {
-        const previous = { ...target }
-        const values = { ...source }
-        const keys = [...new Set([...Reflect.ownKeys(target), ...Reflect.ownKeys(values)])]
-        function replace(values) {
+        const previous = Object.getOwnPropertyDescriptors(target)
+        const next = mapDescriptors(source)
+        const keys = [...new Set([...Reflect.ownKeys(previous), ...Reflect.ownKeys(next)])]
+        function replace(descriptors) {
             for (const key of keys) {
                 Reflect.deleteProperty(target, key)
             }
-            for (const key of Reflect.ownKeys(values)) {
-                change(key, values[key])
+            Object.defineProperties(target, descriptors)
+            for (const key of keys) {
+                updateChild(key, Object.getOwnPropertyDescriptor(target, key))
             }
         }
         const previousSource = location.source
-        replace(values)
-        location.source = source
         try {
-            for (const key of keys) {
-                updateChild(key, Object.hasOwn(values, key) ? values[key] : missing)
-            }
+            location.source = source
+            replace(next)
             record.changed?.(keys)
         } catch (error) {
-            replace(previous)
             location.source = previousSource
-            for (const key of keys) {
-                updateChild(key, Object.hasOwn(previous, key) ? previous[key] : missing)
-            }
+            replace(previous)
             throw error
         }
     }
@@ -232,7 +253,7 @@ function editableRecord(source, original, ancestor)
 export function controllerDefinitions(controller, entries)
 {
     if (records.has(entries)) {
-        return definitionView(controller, entries)
+        return definitionView(controller, entries, { namedHandlers: true })
     }
     return Object.assign(controller, entries)
 }
@@ -247,27 +268,37 @@ export function onDefinitionChange(entries, changed)
 
 // Preserve the controller's methods and listener state. Named definitions are
 // read through the same map the controller's dispatch code uses.
-export function definitionView(controller, entries, controllers)
+export function definitionView(controller, entries, { controllers, namedHandlers = false } = {})
 {
+    function controllerOwns(key) {
+        // Authored handler names previously became own properties on the
+        // controller. They take precedence over helpers such as call().
+        if (namedHandlers && Object.hasOwn(entries, key)) {
+            return false
+        }
+        return Reflect.has(controller, key)
+    }
     return new Proxy(controller, {
         get(target, key, receiver) {
-            if (Reflect.has(target, key)) {
+            if (controllerOwns(key)) {
                 return Reflect.get(target, key, receiver)
             }
-            const value = Object.hasOwn(entries, key) ? entries[key] : undefined
+            const value = Object.hasOwn(entries, key) ? Reflect.get(entries, key, receiver) : undefined
             return controllers?.get(value) ?? value
         },
-        set(target, key, value) {
-            if (value && controllers?.get(entries[key]) === value) {
+        set(target, key, value, receiver) {
+            const descriptor = Object.getOwnPropertyDescriptor(entries, key)
+            if (controllers && value && descriptor && 'value' in descriptor &&
+                controllers.get(entries[key]) === value) {
                 return true
             }
-            if (Reflect.has(target, key)) {
+            if (controllerOwns(key) && (!namedHandlers || Object.hasOwn(target, key))) {
                 return Reflect.set(target, key, value)
             }
-            return Reflect.set(entries, key, value)
+            return Reflect.set(entries, key, value, receiver)
         },
         deleteProperty(target, key) {
-            if (Reflect.has(target, key)) {
+            if (controllerOwns(key)) {
                 return Reflect.deleteProperty(target, key)
             }
             return Reflect.deleteProperty(entries, key)
@@ -279,14 +310,22 @@ export function definitionView(controller, entries, controllers)
             return [...new Set([...Reflect.ownKeys(target), ...Reflect.ownKeys(entries)])]
         },
         getOwnPropertyDescriptor(target, key) {
+            if (namedHandlers && Object.hasOwn(entries, key)) {
+                return Reflect.getOwnPropertyDescriptor(entries, key)
+            }
             return Reflect.getOwnPropertyDescriptor(target, key) ||
                 Reflect.getOwnPropertyDescriptor(entries, key)
         }
     })
 }
 
-export function composeApp({ data, components: suppliedComponents, ...appDefinition })
+export function composeApp(definition)
 {
+    const { data, components: suppliedComponents } = definition
+    const authored = Object.getOwnPropertyDescriptors(definition)
+    delete authored.data
+    delete authored.components
+    const appDefinition = Object.create(Object.getPrototypeOf(definition), authored)
     const components = { ...suppliedComponents }
     const roots = Object.keys(components)
     const definitions = []
@@ -309,21 +348,21 @@ export function composeApp({ data, components: suppliedComponents, ...appDefinit
         }
     }
 
-    const values = Object.create(null)
+    const descriptors = Object.create(null)
     for (const [, definition] of definitions) {
-        for (const key of Object.keys(definition)) {
-            if (!Object.hasOwn(values, key)) {
+        for (const key of Reflect.ownKeys(definition)) {
+            if (!Object.hasOwn(descriptors, key)) {
                 const value = mergedOption(definitions, key, suppliedComponents)
-                if (value !== missing) {
-                    values[key] = value
+                if (value) {
+                    descriptors[key] = value
                 }
             }
         }
     }
-    values.container ||= document.body
-    values.transformers ??= Object.create(null)
+    descriptors.container ??= dataProperty(document.body)
+    descriptors.transformers ??= dataProperty(Object.create(null))
+    const values = Object.create(null, descriptors)
     const options = editableRecord(values, key =>
-        mergedOption(currentDefinitions(), key, suppliedComponents)
-    )
+        mergedOption(currentDefinitions(), key, suppliedComponents), 'app')
     return { data, options, components }
 }

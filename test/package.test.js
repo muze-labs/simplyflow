@@ -45,4 +45,21 @@ describe('workspace package entry points', () => {
 
     expect(customElements.get('simply-render')).toBeDefined()
   })
+
+  it('exposes the same mergeable marker through the global and module entry points', async () => {
+    const simply = await import('@muze-labs/simplyflow')
+    const appModule = await import('@muze-labs/simplyflow/app')
+    expect(globalThis.simply.mergeable).toBe(appModule.mergeable)
+    expect(simply.mergeable).toBe(appModule.mergeable)
+    const source = { label: 'original' }
+    const mounted = simply.app({ tool: simply.mergeable(source) })
+    try {
+      mounted.tool.label = 'local'
+      expect(source.label).toBe('original')
+      delete mounted.tool.label
+      expect(mounted.tool.label).toBe('original')
+    } finally {
+      mounted.destroy()
+    }
+  })
 })

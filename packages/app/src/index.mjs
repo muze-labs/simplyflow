@@ -8,6 +8,7 @@ import { dragdrop } from './dragdrop.mjs'
 import { behaviors } from './behavior.mjs'
 import { includes } from './include.mjs'
 import { composeApp, definitionView, onDefinitionChange } from './composition.mjs'
+export { mergeable } from './composition.mjs'
 import { closest } from './suggest.mjs'
 
 const APP_OPTIONS = [
@@ -37,7 +38,7 @@ class SimplyApp
         const { data, options, components } = composeApp(definition)
         const controllers = new WeakMap()
         const mounted = {}
-        const app = definitionView(this, options, controllers)
+        const app = definitionView(this, options, { controllers })
         const container = options.container
         this.destroyed = false
         this.data = signal(data || {})
@@ -53,7 +54,7 @@ class SimplyApp
         }
 
         for (const key of Object.keys(options)) {
-            if (options[key] == null) {
+            if (APP_OPTIONS.includes(key) && options[key] == null) {
                 continue
             }
             switch(key) {

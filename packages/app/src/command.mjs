@@ -27,11 +27,12 @@ class SimplyCommands {
 			if (!command) {
 				return
 			}
-			if (!api[command.name]) {
+			const handler = Object.hasOwn(api, command.name) ? api[command.name] : undefined
+			if (typeof handler !== 'function') {
                 warnUnknownCommand(api, command.name, command.source)
                 return
 			}
-            const shouldContinue = api[command.name].call(options.app, command.source, command.value, evt)
+            const shouldContinue = handler.call(options.app, command.source, command.value, evt)
             if (shouldContinue!==true) {
                 evt.preventDefault()
                 evt.stopPropagation()
