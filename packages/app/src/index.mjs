@@ -53,7 +53,7 @@ class SimplyApp
             controllers.set(options[key], controller)
         }
 
-        for (const key of Object.keys(options)) {
+        for (const key of Object.getOwnPropertyNames(options)) {
             if (APP_OPTIONS.includes(key) && options[key] == null) {
                 continue
             }

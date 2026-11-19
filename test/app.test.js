@@ -384,7 +384,7 @@ describe('app API', () => {
 
       delete component[name]
       delete testApp[name]
-      expect(Object.hasOwn(testApp, name)).toBe(false)
+      expect(Object.hasOwn(testApp, name)).toBe(name === 'commands')
       expect(held.label).toBeUndefined()
     } finally {
       testApp.destroy()
@@ -410,6 +410,61 @@ describe('app API', () => {
       delete testApp.extra
       expect(Object.hasOwn(testApp, 'extra')).toBe(false)
       expect(Object.keys(extra)).toEqual([])
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('dispatches commands and actions added after an empty app has mounted', () => {
+    document.body.innerHTML = '<main><button data-simply-command="save">Save</button></main><aside></aside>'
+    const first = app({ container: document.querySelector('main') })
+    const second = app({ container: document.querySelector('aside') })
+    const button = document.querySelector('button')
+    const save = jest.fn(function() { this.data.saved = true })
+    try {
+      first.actions.save = save
+      first.commands.save = function() { this.actions.save() }
+      button.click()
+      expect(save).toHaveBeenCalledTimes(1)
+      expect(save.mock.contexts[0]).toBe(first)
+      expect(first.data.saved).toBe(true)
+      expect(Object.hasOwn(second.actions, 'save')).toBe(false)
+      expect(Object.hasOwn(second.commands, 'save')).toBe(false)
+      expect(Object.hasOwn(first.components.app, 'commands')).toBe(false)
+
+      delete first.commands
+      delete first.actions
+      expect(Object.hasOwn(first.commands, 'save')).toBe(false)
+      expect(Object.hasOwn(first.actions, 'save')).toBe(false)
+      first.actions = { save }
+      first.commands = { save() { this.actions.save() } }
+      button.click()
+      expect(save).toHaveBeenCalledTimes(2)
+    } finally {
+      first.destroy()
+      second.destroy()
+    }
+    button.click()
+    expect(save).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses late definitions for initially empty built-in sections', () => {
+    const testApp = app()
+    const start = jest.fn()
+    try {
+      testApp.routes['/late'] = () => 'late route'
+      expect(testApp.routes.match('/late')).toBe('late route')
+      testApp.shortcuts.s = start
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 's', bubbles: true }))
+      testApp.behaviors.late = start
+      const node = document.createElement('div')
+      node.dataset.simplyBehavior = 'late'
+      testApp.behaviors.start(node)
+      expect(start).toHaveBeenCalledTimes(2)
+      testApp.templates.late = '<b>late</b>'
+      testApp.styles.late = 'b { color: blue }'
+      expect(document.getElementById('late').content.textContent).toBe('late')
+      expect(document.getElementById('late.css').textContent).toContain('blue')
     } finally {
       testApp.destroy()
     }
@@ -1265,7 +1320,7 @@ describe('app integration details', () => {
     })
 
     expect(testApp.commmands).toEqual({ save: expect.any(Function) })
-    expect(testApp.commands).toBeUndefined()
+    expect(Object.hasOwn(testApp.commands, 'save')).toBe(false)
     expect(warn).toHaveBeenCalledWith('simplyflow/app: unknown option "commmands". Did you mean "commands"? The option was still added to the app as "app.commmands".')
     testApp.destroy()
     warn.mockRestore()

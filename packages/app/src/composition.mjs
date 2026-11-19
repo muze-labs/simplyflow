@@ -128,7 +128,13 @@ function mergedOption(definitions, key, hasComponents)
         if (!descriptor || (descriptor.value === null && hasComponents)) {
             continue
         }
+        if (sections.has(key) && 'value' in descriptor && descriptor.value == null) {
+            continue
+        }
         result = mergeDescriptor(result, descriptor, childShape('app', key))
+    }
+    if (!result && sections.has(key)) {
+        return dataProperty(Object.create(null))
     }
     if (key === 'container' && (!result || ('value' in result && !result.value))) {
         return dataProperty(document.body)
@@ -350,19 +356,18 @@ export function composeApp(definition)
         }
     }
 
+    const keys = new Set(definitions.flatMap(([, definition]) => Reflect.ownKeys(definition)))
+    keys.add('container')
+    for (const section of sections) {
+        keys.add(section)
+    }
     const descriptors = Object.create(null)
-    for (const [, definition] of definitions) {
-        for (const key of Reflect.ownKeys(definition)) {
-            if (!Object.hasOwn(descriptors, key)) {
-                const value = mergedOption(definitions, key, suppliedComponents)
-                if (value) {
-                    descriptors[key] = value
-                }
-            }
+    for (const key of keys) {
+        const descriptor = mergedOption(definitions, key, suppliedComponents)
+        if (descriptor) {
+            descriptors[key] = descriptor
         }
     }
-    descriptors.container ??= dataProperty(document.body)
-    descriptors.transformers ??= dataProperty(Object.create(null))
     const values = Object.create(null, descriptors)
     const options = editableRecord(values, key =>
         mergedOption(currentDefinitions(), key, suppliedComponents), 'app')

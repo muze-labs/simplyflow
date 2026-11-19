@@ -92,11 +92,11 @@ The returned app object contains:
 | --- | --- |
 | `app.data` | Reactive application data. Change this in actions to update the page. |
 | `app.container` | The app container element. |
-| `app.actions` | Proxied actions object, when actions are configured. |
-| `app.commands` | Command controller, when commands are configured. |
-| `app.routes` | Route controller, when routes are configured. |
-| `app.shortcuts` | Shortcut controller, when shortcuts are configured. |
-| `app.behaviors` | Behavior controller, when behaviors are configured. |
+| `app.actions` | Named actions called with the app as their receiver. |
+| `app.commands` | Command controller for the app container. |
+| `app.routes` | Route controller. |
+| `app.shortcuts` | Keyboard shortcut controller. |
+| `app.behaviors` | DOM behavior controller. |
 | `app.includes` | Include controller. Created automatically for the app container. |
 | `app.components` | Source component definitions, including the top-level app definition. |
 | `app.transformers` | The app’s merged, editable map of named binding transformers. |
@@ -105,6 +105,19 @@ The returned app object contains:
 
 The app object is also available as `this` inside commands, actions, behaviors, route functions and lifecycle functions.
 
+
+Each app starts with its own empty map for any omitted built-in definition
+section. The controllers are ready when `simply.app()` returns, so an existing
+button with `data-simply-command="save"` can use handlers added later.
+
+```js
+const editor = simply.app()
+editor.actions.save = function () { this.data.saved = true }
+editor.commands.save = function () { this.actions.save() }
+```
+
+Deleting a whole built-in section restores its component definitions, or its
+empty default when no component supplies it.
 
 ## Component definitions and live edits
 

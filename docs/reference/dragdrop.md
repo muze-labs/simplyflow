@@ -111,4 +111,4 @@ controller.cancel()
 controller.destroy()
 ```
 
-`container` defaults to `app.container`. `cancel()` clears the preview and resets the controller's drag state. `destroy()` also removes its listeners. When configured through `app({ drags, drops })`, the controller is available as `app.dragdrop` and is destroyed by `app.destroy()`.
+`container` defaults to `app.container`. `cancel()` clears the preview and resets the controller's drag state. `destroy()` also removes its listeners. Every app exposes `app.dragdrop`. You can add handlers to `app.drags` and `app.drops` after startup. The app releases the controller in `app.destroy()`.
