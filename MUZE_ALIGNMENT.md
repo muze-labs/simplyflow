@@ -156,10 +156,11 @@ Beginner documentation now treats `data-simply-list` as the normal collection co
 
 ### Refresh mounted instances after a template definition changes
 
-The IDE can update a named template or style in the app container. After a
-template edit it can call `app.binding.rerender(element, template)` for each
-affected host or expanded `<simply-render>` root. The binding handles targeted
-replacement and reports when the editor should retry after focus moves.
+Apps that support runtime editing can update named templates and styles in
+their containers. After a template edit, call
+`app.binding.rerender(element, template)` for each affected host or expanded
+`<simply-render>` root. The binding reports when the caller should retry after
+focus moves.
 
 ## Open questions
 

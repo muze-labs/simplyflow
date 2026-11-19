@@ -153,5 +153,4 @@ markup and call `rerender(host, template)` again to render the current data.
 
 The method returns `true` after refreshing a matching instance. It returns
 `false` for an unrelated target, or when replacement would remove the focused
-element. In the latter case the editor can retry after focus leaves the
-instance. Pending bound edits are committed as old bindings are released.
+element. In that case, retry after focus leaves the instance. Pending bound edits are committed as old bindings are released.

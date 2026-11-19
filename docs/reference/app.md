@@ -126,9 +126,9 @@ A nested name is also available directly on `app.components` when the name is fr
 The top-level definition is available as `app.components.app`. When the caller
 supplies a component map, `app.components.app.components` records its root
 entries in mount order. The map keeps references to the authored components.
-An IDE can traverse it to reproduce precedence. For example, if `A` includes
-`B` and both define a `save` command, roots `{ A }` select `A.commands.save`, while roots
-`{ A, B }` select `B.commands.save`. Both apps expose `app.components.B` for inspection.
+Apps can use that order to reproduce precedence. If `A` includes `B` and
+both define a `save` command, roots `{ A }` select `A.commands.save` and roots
+`{ A, B }` select `B.commands.save`. Both expose `app.components.B`.
 
 Components can supply defaults in `data`. On each mount,
 SimplyFlow calls `structuredClone` on each component’s data before merging its
@@ -159,8 +159,8 @@ news.transformers.label = previewLabel
 At startup, `label` combines the app’s `render` hook with any `extract` hook
 supplied by `editor`. Assigning `previewLabel` replaces the whole entry for
 this app. Binding looks it up on the next render or extraction. Deleting an
-entry removes it. An editor can use the authored definitions on
-`app.components` to restore the entry explicitly.
+entry removes it. Apps can use the authored definitions on `app.components`
+to restore the entry.
 
 ## Custom definition maps
 
@@ -199,8 +199,8 @@ shortcuts can be assigned directly on their controllers. Register routes
 with `app.routes.load(routes)` and behaviors in `app.behaviors.behaviors`.
 
 At startup the app installs its named templates and styles into its container.
-An editor can update those DOM elements directly and refresh uses of an edited
-template with [the binding’s rerender method](bind.md#refreshing-a-template).
+Apps that support runtime editing can update those DOM elements directly
+and refresh rendered instances with [the binding’s rerender method](bind.md#refreshing-a-template).
 
 ## Binding transformers
 
