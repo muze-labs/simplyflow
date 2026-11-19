@@ -186,16 +186,6 @@ describe('app API', () => {
       expect(second.querySelector('span').textContent).toBe('second component: original')
       expect(otherApp.data.value).toBe('draft')
 
-      const revised = makeTransformer('revised source')
-      testApp.components.app.transformers.label = revised
-      delete testApp.transformers.label
-      testApp.data.title = 'restored'
-      input.value = 'new draft'
-      input.dispatchEvent(new Event('input', { bubbles: true }))
-      await wait()
-      expect(title.textContent).toBe('first revised source: restored')
-      expect(testApp.data.value).toBe('first revised source: new draft')
-
       testApp.transformers.label = function(context, next) {
         context.value = `${this.app.api.label} direct: ${context.value}`
         return next(context)
@@ -209,7 +199,7 @@ describe('app API', () => {
     }
   })
 
-  it('recomposes only the deleted name from current component and app hooks', () => {
+  it('combines component and app transformer hooks in an app-owned map', () => {
     const base = { render() {}, extract() {} }
     const editor = { transformers: { label: base } }
     const appSource = { render() {} }
@@ -228,25 +218,6 @@ describe('app API', () => {
       testApp.transformers.label.render = localRender
       expect(appSource.render).not.toBe(localRender)
       expect(base.render).not.toBe(localRender)
-      testApp.transformers.other = localRender
-
-      editor.transformers.label = { extract() {} }
-      delete testApp.transformers.label
-      expect(testApp.transformers.label.render).toBe(appSource.render)
-      expect(testApp.transformers.label.extract).toBe(editor.transformers.label.extract)
-      expect(testApp.transformers.other).toBe(localRender)
-      delete testApp.transformers.other
-      expect(Object.keys(testApp.transformers)).toEqual(['label'])
-
-      const replacementComponent = { transformers: { label: { extract() {} } } }
-      testApp.components.editor = replacementComponent
-      delete testApp.transformers.label
-      expect(testApp.transformers.label.extract).toBe(replacementComponent.transformers.label.extract)
-
-      delete replacementComponent.transformers.label
-      delete testApp.components.app.transformers.label
-      delete testApp.transformers.label
-      expect(Object.keys(testApp.transformers)).toEqual([])
     } finally {
       testApp.destroy()
     }
@@ -387,97 +358,6 @@ describe('app API', () => {
     }
   })
 
-  it('restores custom properties and nested service methods from current definitions', () => {
-    const shared = { api: mergeable({ labels: mergeable({ format: () => 'shared' }) }), title: 'component' }
-    const api = mergeable({ labels: mergeable({ alternate: () => 'alternate' }) })
-    const testApp = app({ components: { shared }, api, title: 'top' })
-    try {
-      const local = () => 'local'
-      testApp.api.labels.format = local
-      testApp.api.labels.alternate = local
-      shared.api.labels.format = () => 'revised'
-      delete testApp.api.labels.format
-      expect(testApp.api.labels.format()).toBe('revised')
-      expect(testApp.api.labels.alternate()).toBe('local')
-      expect(api.labels.alternate()).toBe('alternate')
-
-      testApp.api = { local }
-      delete testApp.api
-      expect(testApp.api.labels.alternate()).toBe('alternate')
-      expect(testApp.api.labels.format()).toBe('revised')
-      testApp.title = 'session'
-      delete testApp.title
-      expect(testApp.title).toBe('top')
-      delete testApp.components.app.title
-      delete testApp.title
-      expect(testApp.title).toBe('component')
-      testApp.temporary = true
-      delete testApp.temporary
-      expect(Object.hasOwn(testApp, 'temporary')).toBe(false)
-    } finally {
-      testApp.destroy()
-    }
-  })
-
-  it.each(['api', 'commands'])('keeps references to %s live through whole-map edits', name => {
-    const original = { label() { return 'first' } }
-    const component = { [name]: name === 'api' ? mergeable(original) : original }
-    const testApp = app({ components: { component } })
-    try {
-      const held = testApp[name]
-      const preview = { preview() { return 'preview' } }
-      testApp[name] = name === 'api' ? mergeable(preview) : preview
-      expect(testApp[name]).toBe(held)
-      expect(held.preview()).toBe('preview')
-      expect(held.label).toBeUndefined()
-      expect(original.label()).toBe('first')
-
-      original.label = () => 'revised'
-      delete testApp[name]
-      expect(testApp[name]).toBe(held)
-      expect(held.label()).toBe('revised')
-      expect(held.preview).toBeUndefined()
-
-      testApp[name] = null
-      expect(testApp[name]).toBeNull()
-      expect(held.label).toBeUndefined()
-      delete testApp[name]
-      expect(testApp[name]).toBe(held)
-      expect(held.label()).toBe('revised')
-
-      delete component[name]
-      delete testApp[name]
-      expect(Object.hasOwn(testApp, name)).toBe(name === 'commands')
-      expect(held.label).toBeUndefined()
-    } finally {
-      testApp.destroy()
-    }
-  })
-
-  it('keeps nested and runtime-added marked maps live through replacement', () => {
-    const tool = mergeable({ labels: mergeable({ save: 'Save' }) })
-    const testApp = app({ tool })
-    try {
-      const labels = testApp.tool.labels
-      testApp.tool = mergeable({ labels: mergeable({ preview: 'Preview' }) })
-      expect(testApp.tool.labels).toBe(labels)
-      expect(labels).toEqual({ preview: 'Preview' })
-      delete testApp.tool
-      expect(testApp.tool.labels).toBe(labels)
-      expect(labels.save).toBe('Save')
-
-      testApp.extra = mergeable({ title: 'Initial' })
-      const extra = testApp.extra
-      testApp.extra = mergeable({ title: 'Edited' })
-      expect(extra.title).toBe('Edited')
-      delete testApp.extra
-      expect(Object.hasOwn(testApp, 'extra')).toBe(false)
-      expect(Object.keys(extra)).toEqual([])
-    } finally {
-      testApp.destroy()
-    }
-  })
-
   it('dispatches commands and actions added after an empty app has mounted', () => {
     document.body.innerHTML = '<main><button data-simply-command="save">Save</button></main><aside></aside>'
     const first = app({ container: document.querySelector('main') })
@@ -495,42 +375,12 @@ describe('app API', () => {
       expect(Object.hasOwn(second.commands, 'save')).toBe(false)
       expect(Object.hasOwn(first.components.app, 'commands')).toBe(false)
 
-      delete first.commands
-      delete first.actions
-      expect(Object.hasOwn(first.commands, 'save')).toBe(false)
-      expect(Object.hasOwn(first.actions, 'save')).toBe(false)
-      first.actions = { save }
-      first.commands = { save() { this.actions.save() } }
-      button.click()
-      expect(save).toHaveBeenCalledTimes(2)
     } finally {
       first.destroy()
       second.destroy()
     }
     button.click()
-    expect(save).toHaveBeenCalledTimes(2)
-  })
-
-  it('uses late definitions for initially empty built-in sections', () => {
-    const testApp = app()
-    const start = jest.fn()
-    try {
-      testApp.routes['/late'] = () => 'late route'
-      expect(testApp.routes.match('/late')).toBe('late route')
-      testApp.shortcuts.s = start
-      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 's', bubbles: true }))
-      testApp.behaviors.late = start
-      const node = document.createElement('div')
-      node.dataset.simplyBehavior = 'late'
-      testApp.behaviors.start(node)
-      expect(start).toHaveBeenCalledTimes(2)
-      testApp.templates.late = '<b>late</b>'
-      testApp.styles.late = 'b { color: blue }'
-      expect(document.getElementById('late').content.textContent).toBe('late')
-      expect(document.getElementById('late.css').textContent).toContain('blue')
-    } finally {
-      testApp.destroy()
-    }
+    expect(save).toHaveBeenCalledTimes(1)
   })
 
   it('dispatches an authored command named call through the button and public controller', () => {
@@ -549,106 +399,10 @@ describe('app API', () => {
       testApp.commands.call = replacement
       button.click()
       expect(replacement).toHaveBeenCalledTimes(1)
-      delete testApp.commands.call
-      button.click()
-      expect(original).toHaveBeenCalledTimes(2)
       expect(editor.commands.call).toBe(original)
     } finally {
       testApp.destroy()
     }
-  })
-
-  it('dispatches current commands, actions, shortcuts and routes after deletion', () => {
-    document.body.innerHTML = '<button data-simply-command="save">Save</button>'
-    const calls = []
-    const editor = {
-      commands: { save() { this.actions.save() } },
-      actions: { save() { calls.push('original') } },
-      shortcuts: { default: { s() { this.actions.save() } } },
-      routes: { '/save': 'save' }
-    }
-    const testApp = app({ components: { editor } })
-    const click = () => document.querySelector('button').click()
-    const key = () => document.body.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 's', bubbles: true
-    }))
-    try {
-      testApp.commands.save = () => calls.push('command')
-      click()
-      delete testApp.commands.save
-      testApp.actions.save = () => calls.push('action')
-      click()
-      delete testApp.actions.save
-      click()
-      testApp.shortcuts.default.s = () => { calls.push('shortcut') }
-      key()
-      delete testApp.shortcuts.default.s
-      key()
-      testApp.routes['/save'] = () => calls.push('route')
-      testApp.routes.match('/save')
-      delete testApp.routes['/save']
-      testApp.routes.match('/save')
-      expect(calls).toEqual(['command', 'action', 'original', 'shortcut', 'original', 'route', 'original'])
-
-      testApp.commands = { save() { calls.push('whole section') } }
-      click()
-      editor.commands.save = () => calls.push('revised')
-      delete testApp.commands
-      click()
-      expect(calls.slice(-2)).toEqual(['whole section', 'revised'])
-    } finally {
-      testApp.destroy()
-    }
-    click()
-    expect(calls.at(-1)).toBe('revised')
-  })
-
-  it('preserves routing order, loaded routes and listeners across edits', () => {
-    const calls = []
-    const testApp = app({ routes: {
-      '/item/:id': () => 'first',
-      '/item/special': () => 'second'
-    } })
-    try {
-      const router = testApp.routes
-      router.load({ '/extra': () => 'extra' })
-      router.addListener('match', '/item/:id', () => { calls.push('match') })
-      testApp.routes = {
-        '/item/special': () => 'specific',
-        '/item/:id': () => 'generic'
-      }
-      expect(router.match('/item/special')).toBe('specific')
-      expect(() => { testApp.routes['/:*'] = () => 'bad' }).toThrow(/wildcard/)
-      expect(Object.hasOwn(testApp.routes, '/:*')).toBe(false)
-      delete testApp.routes
-      expect(router.match('/item/special')).toBe('first')
-      expect(router.match('/extra')).toBe('extra')
-      expect(calls).toEqual(['match', 'match'])
-      expect(router.has('/eventHandlers')).toBe(false)
-    } finally {
-      testApp.destroy()
-    }
-  })
-
-  it('uses restored behaviors on the next mount and runs the matching cleanup', () => {
-    const calls = []
-    const start = name => () => {
-      calls.push(name)
-      return () => calls.push('stop ' + name)
-    }
-    const testApp = app({ behaviors: { card: start('original') } })
-    const node = document.createElement('div')
-    node.dataset.simplyBehavior = 'card'
-    try {
-      testApp.behaviors.card = start('local')
-      testApp.behaviors.start(node)
-      delete testApp.behaviors.card
-      testApp.behaviors.stop(node)
-      testApp.behaviors.start(node)
-    } finally {
-      testApp.destroy()
-    }
-    expect(calls).toEqual(['local', 'stop local', 'original', 'stop original'])
   })
 
   it('keeps unmarked services intact, including accessors, hidden state and symbols', () => {
@@ -670,9 +424,6 @@ describe('app API', () => {
       expect(testApp.api.label).toBe('updated')
       expect(testApp.api.hidden).toBe(42)
       expect(testApp.api[secret]).toBe('updated')
-      testApp.api = mergeable({ different: true })
-      delete testApp.api
-      expect(testApp.api).toBe(api)
     } finally {
       testApp.destroy()
     }
@@ -687,10 +438,6 @@ describe('app API', () => {
       expect(testApp.api).toBe(service)
       expect(get).not.toHaveBeenCalled()
       expect(() => mergeable(service)).toThrow(/non-configurable property "label"/)
-      delete testApp.components.app.api
-      delete testApp.api
-      expect(testApp.api.earlier).toBe(true)
-      expect(get).not.toHaveBeenCalled()
     } finally {
       testApp.destroy()
     }
@@ -714,7 +461,7 @@ describe('app API', () => {
     }
   })
 
-  it('preserves descriptors across marked-map composition, replacement and restoration', () => {
+  it('preserves descriptors when composing marked maps', () => {
     const hidden = Symbol('hidden')
     const get = jest.fn(function() { return this.prefix + '!' })
     const set = jest.fn(function(value) { this.prefix = value })
@@ -733,12 +480,6 @@ describe('app API', () => {
       expect(base.prefix).toBe('base')
       expect(held[hidden]).toBe(42)
       expect(Reflect.set(held, hidden, 0)).toBe(false)
-      testApp.api = mergeable({ prefix: 'replaced' })
-      expect(held.label).toBeUndefined()
-      delete testApp.api
-      expect(held.label).toBe('top!')
-      delete held.label
-      expect(Object.getOwnPropertyDescriptor(held, 'label').get).toBe(get)
     } finally {
       testApp.destroy()
     }
@@ -756,35 +497,9 @@ describe('app API', () => {
       expect(first.api.names).toBe(names)
       expect(second.api.label()).toBe('source')
       expect(api.label()).toBe('source')
-      api.label = () => 'revised'
-      delete first.api.label
-      expect(first.api.label()).toBe('revised')
     } finally {
       first.destroy()
       second.destroy()
-    }
-  })
-
-  it('reapplies installed template and style entries when edits are deleted', () => {
-    const editor = { templates: { card: '<b>A</b>' }, styles: { card: 'b { color: red }' } }
-    const testApp = app({ components: { editor } })
-    try {
-      testApp.templates.card = '<i>B</i>'
-      testApp.styles.card = 'i { color: blue }'
-      const template = document.getElementById('card')
-      const style = document.getElementById('card.css')
-      expect(template.content.textContent).toBe('B')
-      expect(style.textContent).toContain('blue')
-      delete testApp.templates.card
-      delete testApp.styles.card
-      expect(template.content.textContent).toBe('A')
-      expect(style.textContent).toContain('red')
-      expect(document.querySelectorAll('style')).toHaveLength(1)
-      testApp.templates.temporary = 'temporary'
-      delete testApp.templates.temporary
-      expect(document.getElementById('temporary')).toBeNull()
-    } finally {
-      testApp.destroy()
     }
   })
 

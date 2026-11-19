@@ -118,3 +118,27 @@ Returns the value at a binding path. Supports binding special paths such as `:ro
 ### `trace(path)`
 
 Returns global binding trace data for a path.
+
+## Refreshing a template
+
+After editing a named template element in place, pass a bound field, list, or
+map and that template to `binding.rerender(element, template)`. The binding
+uses its current data and replaces the instances of that template inside the
+host. Other rows retain their DOM nodes. For an expanded `<simply-render>`,
+pass its rendered root as the element.
+
+```js
+const template = app.container.querySelector('template#card')
+template.innerHTML = editedMarkup
+for (const use of app.container.querySelectorAll('template[rel="card"]')) {
+  app.binding.rerender(use.parentElement, template)
+}
+for (const root of app.container.querySelectorAll('[data-simply-template="card"]')) {
+  app.binding.rerender(root, template)
+}
+```
+
+The method returns `true` after refreshing a matching instance. It returns
+`false` for an unrelated target, or when replacement would remove the focused
+element. In the latter case the editor can retry after focus leaves the
+instance. Pending bound edits are committed as old bindings are released.

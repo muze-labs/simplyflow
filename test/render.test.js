@@ -1,4 +1,5 @@
 import '@muze-labs/simplyflow/render'
+import { app } from '@muze-labs/simplyflow/app'
 import { DEP } from '@muze-labs/simplyflow/symbols'
 
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
@@ -38,6 +39,24 @@ describe('simply-render custom element API', () => {
     expect(main.childNodes).toHaveLength(2)
     for (const root of roots) {
       expect(root[DEP.TEMPLATE]).toBe(document.getElementById('card'))
+    }
+  })
+
+  it('refreshes one expanded instance with its invocation attributes and current app data', async () => {
+    document.body.innerHTML = `<template id="card"><article>Old</article></template>
+      <main><simply-render rel="card" class="first"></simply-render>
+      <simply-render rel="card" class="second"></simply-render></main>`
+    const container = document.querySelector('main')
+    const editor = app({ container, data: { title: 'New' } })
+    const template = document.getElementById('card')
+    try {
+      template.innerHTML = '<section><span data-simply-field="title"></span></section>'
+      expect(editor.binding.rerender(container.querySelector('.first'), template)).toBe(true)
+      await wait(0)
+      expect(container.querySelector('section.first').textContent).toBe('New')
+      expect(container.querySelector('article.second').textContent).toBe('Old')
+    } finally {
+      editor.destroy()
     }
   })
 

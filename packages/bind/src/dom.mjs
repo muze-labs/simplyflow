@@ -1,13 +1,21 @@
 import { createSignal, getSignal, isSignal, signal as stateSignal, notifyGet, notifySet, makeContext,
-         throttledEffect, untracked, batch } from '@muze-labs/simplyflow-state'
+         throttledEffect, untracked, batch, destroy } from '@muze-labs/simplyflow-state'
 import { getValueByPath } from './index.mjs'
 import { setValueByPath, getProperties } from './render.mjs'
 import { DEP } from '@muze-labs/simplyflow-state/symbols'
 
 /**
- * Tracks element => signal mapping so that each element only has one signal
+ * DOM-to-data effects owned by mounted editable fields and lists.
  */
-const domSignals = new WeakMap()
+const domEffects = new WeakMap()
+
+export function releaseDomBinding(element, flush) {
+    const effect = domEffects.get(element)
+    if (effect) {
+        domEffects.delete(element)
+        destroy(effect, { flush })
+    }
+}
 
 /**
  * Tracks element => mutationObservers
@@ -164,6 +172,9 @@ function domListen(el, signal, options) {
  */
 export function trackDomList(element)
 {
+    if (domEffects.has(element)) {
+        return getSignal(element)
+    }
     const path = this.getBindingPath(element)
     if (!path) {
         throw new Error('Could not find binding path for element', { cause: element })
@@ -171,7 +182,7 @@ export function trackDomList(element)
     const s = signal(element, {
         childList: true
     })
-    throttledEffect(() => {
+    const effect = throttledEffect(() => {
         const children = Array.from(s.children)
         untracked(() => { // don't track access to the data, only track dom changes
             batch(() => { // apply all changes in the list as one change
@@ -197,6 +208,7 @@ export function trackDomList(element)
             })
         })
     }, 50)
+    domEffects.set(element, effect)
     return s
 }
 
@@ -206,7 +218,7 @@ export function trackDomList(element)
  * @returns Proxy
  */
 export function trackDomField(element, props, valueIsString, stringProperty = 'innerHTML', getUpdateValue, context) {
-    if (domSignals.has(element)) {
+    if (domEffects.has(element)) {
         return
     }
     const path = this.getBindingPath(element)
@@ -214,9 +226,8 @@ export function trackDomField(element, props, valueIsString, stringProperty = 'i
         throw new Error('Could not find binding path for element', { cause: element })
     }
     const s = signal(element)
-    domSignals.set(element, s)
     batch(() => { // avoids cyclical dependencies - check why
-        throttledEffect(() => {
+        const effect = throttledEffect(() => {
             let updateValue
             if (getUpdateValue) {
                 // Custom edit extractors often need the current data value, for
@@ -255,6 +266,7 @@ export function trackDomField(element, props, valueIsString, stringProperty = 'i
                 setValueByPath(this.options.root, path, updateValue, { replace: context?.replaceValue })
             })
         }, 50)
+        domEffects.set(element, effect)
     })
     return s
 }

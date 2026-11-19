@@ -1,5 +1,6 @@
 import { throttledEffect, destroy } from '@muze-labs/simplyflow-state'
 import { escape_html, fixed_content, attributes } from './transformers.mjs'
+import { releaseDomBinding } from './dom.mjs'
 import * as render from './render.mjs'
 import { DEP } from '@muze-labs/simplyflow-state/symbols'
 
@@ -82,16 +83,11 @@ class SimplyBind
 
         // sets up the effect that updates the element if its
         // data binding value changes
-        const renderElement = (el) => {
+        const renderElement = (el, refreshTemplate) => {
             this.bindings.set(el, throttledEffect(() => {
                 if (!el.isConnected) {
                     // el is no longer part of this document
-                    untrack(el, this.getBindingPath(el))
-                    const binding = this.bindings.get(el)
-                    if (binding) {
-                        destroy(binding)
-                        this.bindings.delete(el)
-                    }
+                    this.releaseBinding(el)
                     // doing this here instead of in a mutationobserver
                     // allows an element to be temporary removed and then inserted
                     // without the binding having to be reset
@@ -99,8 +95,10 @@ class SimplyBind
                 }
                 let context = {
                     templates: el.querySelectorAll(':scope > template'),
-                    attribute: getBindingAttribute(el)
+                    attribute: getBindingAttribute(el),
+                    refreshTemplate
                 }
+                refreshTemplate = undefined
                 context.edit = context.attribute === this.options.attribute+'-edit'
                 context.path = this.getBindingPath(el)
                 context.value = getValueByPath(this.options.root, context.path)
@@ -135,6 +133,34 @@ class SimplyBind
                 .map(transformer => getTransformerPhase(transformer, 'render'))
                 .filter(Boolean))
             runTransformerStack.call(this, transformers, context)
+        }
+
+        this.rerender = (element, template) => {
+            if (!template || !this.observer || !this.options.container.contains(element)) {
+                return false
+            }
+            const standalone = element[DEP.TEMPLATE] === template && element[DEP.RERENDER]
+            const roots = standalone ? [element] :
+                Array.from(element.children).filter(child => child[DEP.TEMPLATE] === template)
+            if (!roots.length || roots.some(root => root.contains(root.ownerDocument.activeElement))) {
+                return false
+            }
+            if (standalone) {
+                standalone()
+            } else {
+                const previous = this.bindings.get(element)
+                if (!previous) {
+                    return false
+                }
+                renderElement(element, template)
+                destroy(previous)
+            }
+            for (const node of this.bindings.keys()) {
+                if (!node.isConnected && roots.some(root => root.contains(node))) {
+                    this.releaseBinding(node, true)
+                }
+            }
+            return true
         }
 
         // given a set of elements with data bind attribute
@@ -431,14 +457,24 @@ class SimplyBind
         return template
     }
 
-    destroy()
+    releaseBinding(element, flush = false)
     {
-        this.bindings.forEach((binding, element) => {
+        const binding = this.bindings.get(element)
+        if (binding) {
+            this.bindings.delete(element)
             untrack(element, this.getBindingPath(element))
             destroy(binding)
-        })
-        this.bindings = new Map()
-        this.observer.disconnect()
+            releaseDomBinding(element, flush)
+        }
+    }
+
+    destroy()
+    {
+        for (const element of this.bindings.keys()) {
+            this.releaseBinding(element)
+        }
+        this.observer?.disconnect()
+        this.observer = null
     }
 
 }

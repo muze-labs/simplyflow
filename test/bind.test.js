@@ -5,6 +5,64 @@ import { bind, trace } from '@muze-labs/simplyflow-bind'
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 
 describe('bind can', () => {
+  it.each([
+    ['field', 'draft'],
+    ['list', ['draft', 'other']],
+    ['map', { first: 'draft', second: 'other' }]
+  ])('refreshes an edited template in a mounted %s', async (kind, items) => {
+    document.body.innerHTML = `<template id="card"><b>Old</b></template>
+      <main data-flow-${kind}="items">
+        <template rel="card" data-flow-match="draft"></template>
+        <template><i>Keep</i></template>
+      </main>`
+    const data = signal({ items })
+    const binding = bind({ root: data })
+    const host = document.querySelector('main')
+    const template = document.getElementById('card')
+    const other = host.querySelector('i')
+    try {
+      template.innerHTML = '<strong data-flow-field=":root.title"></strong>'
+      data.title = 'Edited'
+      expect(binding.rerender(host, template)).toBe(true)
+      await wait()
+      expect(host.querySelector('b')).toBeNull()
+      expect(host.querySelector('strong').textContent).toBe('Edited')
+      expect(host.querySelector('i')).toBe(other)
+      data.title = 'Still bound'
+      await wait()
+      expect(host.querySelector('strong').textContent).toBe('Still bound')
+    } finally {
+      binding.destroy()
+    }
+  })
+
+  it('retains a focused edit and commits pending input when the editor retries', async () => {
+    document.body.innerHTML = `<template id="card"><input data-flow-edit=":value"></template>
+      <main data-flow-list="names"><template rel="card"></template></main>`
+    const data = signal({ names: ['original'] })
+    const binding = bind({ root: data })
+    const host = document.querySelector('main')
+    const template = document.getElementById('card')
+    try {
+      await wait(0)
+      const input = host.querySelector('input')
+      input.focus()
+      input.value = 'edited'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      template.innerHTML = '<b data-flow-field=":value"></b>'
+      expect(binding.rerender(host, template)).toBe(false)
+      expect(document.activeElement).toBe(input)
+      input.blur()
+      expect(binding.rerender(host, template)).toBe(true)
+      expect(data.names[0]).toBe('edited')
+      expect(binding.bindings.has(input)).toBe(false)
+      await wait()
+      expect(host.querySelector('b').textContent).toBe('edited')
+    } finally {
+      binding.destroy()
+    }
+  })
+
   it('render simple list', (done) => {
     const source = `
   <ul data-flow-list="menu">

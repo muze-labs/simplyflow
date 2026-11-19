@@ -116,9 +116,6 @@ editor.actions.save = function () { this.data.saved = true }
 editor.commands.save = function () { this.actions.save() }
 ```
 
-Deleting a whole built-in section restores its component definitions, or its
-empty default when no component supplies it.
-
 ## Component definitions and live edits
 
 SimplyFlow merges nested components before their parent, siblings in declaration
@@ -151,15 +148,13 @@ const news = simply.app({
 })
 
 news.transformers.label = previewLabel
-// Later, restore the currently authored hooks for this app.
-delete news.transformers.label
 ```
 
-If `editor` supplies `label.extract`, the restored transformer has both that
-hook and `renderNewsLabel`. Replacing the named entry temporarily replaces the
-whole transformer. Deleting it merges that name again, including any deliberate
-edits to the source definitions. An entry added only to the running app
-disappears on deletion. Binding uses the result on its next render or extraction.
+At startup, `label` combines the app’s `render` hook with any `extract` hook
+supplied by `editor`. Assigning `previewLabel` replaces the whole entry for
+this app. Binding looks it up on the next render or extraction. Deleting an
+entry removes it. An editor can use the authored definitions on
+`app.components` to restore the entry explicitly.
 
 ## Custom definition maps
 
@@ -183,8 +178,7 @@ const news = simply.app({
 ```
 
 Here `news.api` has both methods. Assigning `news.api.formatLabel` edits the
-running app. Deleting the edit restores the current definition. Assign another
-marked map to replace the whole map while keeping existing references live.
+running app. The source definitions remain available on `news.components`.
 
 Unmarked custom objects and arrays are used by reference. In this example
 `news.storage === storageService`, including its getters, setters and internal
@@ -192,17 +186,15 @@ state. The marker applies only to its own map. Mark a nested custom map separate
 when its members should also compose. If a later contribution at the same
 property is unmarked, it supplies the whole value.
 
-Editable maps preserve accessors, enumerability, writability and symbol keys.
-Their own entries must be configurable so whole-map replacement and restoration
-can remove them. An unmarked service can contain non-configurable properties.
-Reactive state lives on `news.data`, where deleting a property removes its value.
+Entries in editable maps must be configurable. Composition preserves their
+accessors, enumerability, writability and symbol keys.
+Runtime commands, actions and
+shortcuts can be assigned directly on their controllers. Register routes
+with `app.routes.load(routes)` and behaviors in `app.behaviors.behaviors`.
 
-Installed commands, shortcuts, routes and drag/drop handlers use the current
-definition on their next dispatch. Behaviors use it when they next start.
-Edits to template and style definitions update their installed elements.
-Already-rendered instances keep their existing markup when a template changes.
-Refreshing those instances is [planned](../../MUZE_ALIGNMENT.md#refresh-mounted-instances-after-a-template-definition-changes).
-The container and binding attribute select where to mount at startup.
+At startup the app installs its named templates and styles into its container.
+An editor can update those DOM elements directly and refresh uses of an edited
+template with [the binding’s rerender method](bind.md#refreshing-a-template).
 
 ## Binding transformers
 

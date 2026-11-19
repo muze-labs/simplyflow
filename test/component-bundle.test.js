@@ -33,8 +33,6 @@ it('isolates a marked component shared by two apps from a separately built brows
       expect(first.api.format()).toBe('personal')
       expect(editor.api.format()).toBe('original')
       expect(second.api.format()).toBe('original')
-      delete first.api.format
-      expect(first.api.format).toBe(editor.api.format)
     } finally {
       first.destroy()
       second.destroy()

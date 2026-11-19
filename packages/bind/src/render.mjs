@@ -184,7 +184,7 @@ export function arrayByTemplates(context)
             : findReusableItem(items, usedItems, value, newTemplate, cursor + 1)
 
         if (reusableItem) {
-            if (newTemplate != reusableItem[DEP.TEMPLATE]) {
+            if (newTemplate !== reusableItem[DEP.TEMPLATE] || (context.refreshTemplate && newTemplate === context.refreshTemplate)) {
                 context.element.replaceChild(this.applyTemplate(context), reusableItem)
             } else {
                 if (reusableItem !== item) {
@@ -307,7 +307,7 @@ export function objectByTemplates(context)
         }
 
         if (reusableItem) {
-            if (newTemplate != reusableItem[DEP.TEMPLATE]) {
+            if (newTemplate !== reusableItem[DEP.TEMPLATE] || (context.refreshTemplate && newTemplate === context.refreshTemplate)) {
                 context.element.replaceChild(this.applyTemplate(context), reusableItem)
             } else {
                 if (reusableItem !== item) {
@@ -354,7 +354,7 @@ export function fieldByTemplates(context)
     context.parent = getParentPath(context.element)
     if (rendered) {
         if (template) {
-            if (rendered?.[DEP.TEMPLATE] != template) {
+            if (rendered[DEP.TEMPLATE] !== template || template === context.refreshTemplate) {
                 const clone = this.applyTemplate(context)
                 context.element.replaceChild(clone, rendered)
             }

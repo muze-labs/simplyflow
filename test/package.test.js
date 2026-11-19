@@ -56,8 +56,6 @@ describe('workspace package entry points', () => {
     try {
       mounted.tool.label = 'local'
       expect(source.label).toBe('original')
-      delete mounted.tool.label
-      expect(mounted.tool.label).toBe('original')
     } finally {
       mounted.destroy()
     }

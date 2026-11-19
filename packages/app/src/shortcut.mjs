@@ -1,4 +1,3 @@
-import { controllerDefinitions } from './composition.mjs'
 const shortcutState = new WeakMap()
 const accesskeyState = new WeakMap()
 
@@ -20,7 +19,7 @@ class SimplyShortcuts
 		if (!options.app.container) {
 			options.app.container = document.body
 		}
-		const api = controllerDefinitions(this, options.shortcuts)
+		Object.defineProperties(this, Object.getOwnPropertyDescriptors(options.shortcuts || {}))
 
 		const keyHandler = (e) => {
 			let shortcutScopes = []
@@ -40,22 +39,22 @@ class SimplyShortcuts
 				const keyString = getKeyString(e, separator)
 				for (let i in shortcutScopes) {
 					shortcutScope = shortcutScopes[i]
-					if (api[shortcutScope] && (typeof api[shortcutScope][keyString]=='function')) {
-						let _continue = api[shortcutScope][keyString].call(options.app, e)
+					if (this[shortcutScope] && (typeof this[shortcutScope][keyString]=='function')) {
+						let _continue = this[shortcutScope][keyString].call(options.app, e)
 						if (!_continue) {
 							e.preventDefault()
 							return
 						}
 					}
-					if (typeof api[shortcutScope + '.' + keyString] == 'function') {
-						let _continue = api[shortcutScope + '.' + keyString].call(options.app, e)
+					if (typeof this[shortcutScope + '.' + keyString] == 'function') {
+						let _continue = this[shortcutScope + '.' + keyString].call(options.app, e)
 						if (!_continue) {
 							e.preventDefault()
 							return
 						}					
 					}
-					if (typeof api[keyString] == 'function') {
-						let _continue = api[keyString].call(options.app, e)
+					if (typeof this[keyString] == 'function') {
+						let _continue = this[keyString].call(options.app, e)
 						if (!_continue) {
 							e.preventDefault()
 							return
@@ -67,8 +66,7 @@ class SimplyShortcuts
 
 		const container = options.app.container
 		container.addEventListener('keydown', keyHandler)
-		shortcutState.set(api, { container, keyHandler })
-		return api
+		shortcutState.set(this, { container, keyHandler })
 	}
 }
 

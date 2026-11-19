@@ -7,7 +7,7 @@ import { shortcuts, destroyShortcuts, accesskeys, destroyAccesskeys } from './sh
 import { dragdrop } from './dragdrop.mjs'
 import { behaviors } from './behavior.mjs'
 import { includes } from './include.mjs'
-import { composeApp, definitionView, onDefinitionChange } from './composition.mjs'
+import { composeApp } from './composition.mjs'
 export { mergeable } from './composition.mjs'
 import { closest } from './suggest.mjs'
 
@@ -31,169 +31,90 @@ const APP_OPTIONS = [
     'transformers'
 ]
 
+const runtimeProperties = new Set([
+    'commands', 'actions', 'shortcuts', 'routes', 'behaviors',
+    'binding', 'dragdrop', 'includes', 'accesskeys', 'destroy'
+])
+
 class SimplyApp
 {
     constructor(definition={})
     {
         const { data, options, components } = composeApp(definition)
-        const controllers = new WeakMap()
-        const mounted = {}
-        const app = definitionView(this, options, { controllers })
-        const container = options.container
-        this.destroyed = false
+        const app = this
+        const { container } = options
         this.data = signal(data || {})
         this.components = components
+        this.destroyed = false
+
+        for (const key of Reflect.ownKeys(options)) {
+            if (runtimeProperties.has(key) || key in this) {
+                continue
+            }
+            if (typeof key === 'string' && !APP_OPTIONS.includes(key)) {
+                warnLikelyOptionTypo(key)
+            }
+            Object.defineProperty(this, key, Object.getOwnPropertyDescriptor(options, key))
+        }
 
         installMarkup(container, options.templates, 'template')
         installMarkup(container, options.styles, 'style')
-
-        // The public app exposes the controller while its definition map is active.
-        const mount = (key, controller) => {
-            mounted[key] = controller
-            controllers.set(options[key], controller)
-        }
-
-        for (const key of Object.getOwnPropertyNames(options)) {
-            if (APP_OPTIONS.includes(key) && options[key] == null) {
-                continue
-            }
-            switch(key) {
-                case 'container':
-                case 'data':
-                case 'attribute':
-                case 'drags':
-                case 'drops':
-                case 'templates':
-                case 'styles':
-                case 'start':
-                case 'onError':
-                case 'components':
-                case 'baseURL':
-                case 'transformers':
-                    break
-                case 'commands':
-                    mount(key, commands({ app, container, commands: options.commands }))
-                    break
-                case 'shortcuts':
-                    mount(key, shortcuts({ app, shortcuts: options.shortcuts }))
-                    break
-                case 'behaviors':
-                    mount(key, definitionView(behaviors({
-                        app, container, behaviors: options.behaviors
-                    }), options.behaviors || {}))
-                    break
-                case 'routes':
-                    mount(key, definitionView(
-                        routes({ app, routes: options.routes }), options.routes || {}
-                    ))
-                    break
-                case 'actions':
-                    mount(key, actions({ app, actions: options.actions }))
-                    break
-                case 'prototype':
-                case '__proto__':
-                    // ignore this to avoid prototype pollution
-                    break
-                default:
-                    // Unknown options become app properties. Warn only when the
-                    // name is close to a built-in option, which usually means a typo.
-                    warnLikelyOptionTypo(key)
-                    break
-            }
-        }
-
+        this.commands = commands({ app, commands: options.commands })
+        this.actions = actions({ app, actions: options.actions })
+        this.shortcuts = shortcuts({ app, shortcuts: options.shortcuts })
+        this.routes = routes({ app, routes: options.routes })
+        this.behaviors = behaviors({ app, container, behaviors: options.behaviors })
         this.binding = bind({
-            root: this.data,
-            container,
-            attribute: options.attribute || 'data-simply',
-            app
+            root: this.data, container, attribute: options.attribute || 'data-simply', app
         })
-
-        if (options.drags || options.drops) {
-            this.dragdrop = dragdrop({ app, drags: options.drags, drops: options.drops })
-        }
-
-        onDefinitionChange(options, keys => {
-            if (keys.includes('baseURL') && mounted.routes) {
-                mounted.routes.init({ baseURL: options.baseURL || '/' })
-            }
-        })
+        this.dragdrop = dragdrop({ app, drags: options.drags, drops: options.drops })
         this.includes = includes({ container })
-
         this.accesskeys = accesskeys({ app, container })
-        // Dispose the controllers created at startup even if an app edit
-        // has since removed or replaced their definitions.
-        this.destroy = this.destroy.bind(this, mounted, options.templates, options.styles)
-        return app
+
+        // Dispose the installed controllers even if app code replaces a property.
+        const { binding, commands: commandApi, shortcuts: shortcutApi, accesskeys: keys,
+            routes: router, behaviors: behaviorApi, dragdrop: dragApi, includes: includeApi } = this
+        this.destroy = () => {
+            if (this.destroyed) return
+            this.destroyed = true
+            dragApi.destroy()
+            binding.destroy()
+            destroyCommands(commandApi)
+            destroyShortcuts(shortcutApi)
+            destroyAccesskeys(keys)
+            router.destroy()
+            behaviorApi.destroy()
+            includeApi.destroy()
+            this.binding = undefined
+            this.routes = undefined
+            this.behaviors = undefined
+            this.includes = undefined
+            this.accesskeys = undefined
+        }
     }
 
     get app()
     {
         return this
     }
-
-    destroy(mounted, templates, styles)
-    {
-        this.destroyed = true
-        onDefinitionChange(templates, undefined)
-        onDefinitionChange(styles, undefined)
-        if (this.dragdrop) {
-            this.dragdrop.destroy()
-        }
-        if (this.binding) {
-            this.binding.destroy()
-            this.binding = undefined
-        }
-        if (mounted.commands) {
-            destroyCommands(mounted.commands)
-        }
-        if (mounted.shortcuts) {
-            destroyShortcuts(mounted.shortcuts)
-        }
-        if (this.accesskeys) {
-            destroyAccesskeys(this.accesskeys)
-            this.accesskeys = undefined
-        }
-        if (mounted.routes) {
-            mounted.routes.destroy()
-            this.routes = undefined
-        }
-        if (mounted.behaviors) {
-            mounted.behaviors.destroy()
-            this.behaviors = undefined
-        }
-        if (this.includes) {
-            this.includes.destroy()
-            this.includes = undefined
-        }
-    }
 }
 
 function installMarkup(container, definitions, tag)
 {
-    if (!definitions) return
-    function update(name) {
+    for (const name of Object.keys(definitions)) {
         const id = tag === 'style' ? name + '.css' : name
         let node = Array.from(container.querySelectorAll(tag)).find(node => node.id === id)
-        if (!Object.hasOwn(definitions, name)) {
-            node?.remove()
-            return
-        }
         if (!node) {
             node = document.createElement(tag)
             node.id = id
             container.appendChild(node)
         }
         if (tag === 'template') {
-            const element = document.createElement('div')
-            element.innerHTML = definitions[name]
-            node.content.replaceChildren(...element.children)
+            node.innerHTML = definitions[name]
         } else {
             node.textContent = definitions[name]
         }
     }
-    Object.keys(definitions).forEach(update)
-    onDefinitionChange(definitions, names => names.forEach(update))
 }
 
 function warnLikelyOptionTypo(key)
