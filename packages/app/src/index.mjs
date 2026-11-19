@@ -48,7 +48,8 @@ class SimplyApp
         this.onError = options.onError
         this.components = options.components
         this.baseURL = options.baseURL
-        this.transformers = options.transformers
+        this.transformers = copyTransformerDefinitions(options.transformers)
+        this.transformerOverrides = Object.create(null)
 
         installTemplates(this.container, options.templates)
         installStyles(this.container, options.styles)
@@ -98,7 +99,16 @@ class SimplyApp
             root: this.data,
             container: this.container,
             attribute: options.attribute || 'data-simply',
-            transformers: this.transformers
+            transformerApp: this,
+            resolveTransformer: (name, fallback) => {
+                if (Object.hasOwn(this.transformerOverrides, name)) {
+                    return this.transformerOverrides[name]
+                }
+                if (this.transformers && Object.hasOwn(this.transformers, name)) {
+                    return this.transformers[name]
+                }
+                return fallback
+            }
         })
 
         if (options.drags || options.drops) {
@@ -268,6 +278,20 @@ function mergeOptions(options, otherOptions)
     }
 }
 
+function copyTransformerDefinitions(transformers)
+{
+    const definitions = Object.create(null)
+    for (const [name, transformer] of Object.entries(transformers ?? {})) {
+        if (transformer && typeof transformer === 'object') {
+            const copy = Object.create(Object.getPrototypeOf(transformer))
+            definitions[name] = Object.assign(copy, transformer)
+        } else {
+            definitions[name] = transformer
+        }
+    }
+    return definitions
+}
+
 function mergeComponents(options, components) {
     for (const name of Object.keys(components)) {
         const component = components[name]
@@ -285,6 +309,10 @@ function mergeComponents(options, components) {
                     // App lifecycle functions are app-level behavior, not merged component state.
                 case 'components':
                     // already handled
+                    break
+                case 'transformers':
+                    options.transformers ??= Object.create(null)
+                    mergeOptions(options.transformers, copyTransformerDefinitions(component.transformers))
                     break
                 default:
                     if (!options[key]) {

@@ -98,7 +98,8 @@ The returned app object contains:
 | `app.shortcuts` | Shortcut controller, when shortcuts are configured. |
 | `app.behaviors` | Behavior controller, when behaviors are configured. |
 | `app.includes` | Include controller. Created automatically for the app container. |
-| `app.transformers` | Transformer map passed to the default binding. |
+| `app.transformers` | Named definitions resolved by the default binding on each evaluation. |
+| `app.transformerOverrides` | Per-app overrides for named transformers. Deleting an entry exposes the underlying definition. |
 | `app.binding` | Lower-level binding controller. |
 | `app.destroyed` | `true` after `app.destroy()` is called. |
 
