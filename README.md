@@ -250,7 +250,7 @@ npm test
 npm run build
 ```
 
-Before publishing, run:
+To preview the workspace packages and check release readiness, run:
 
 ```shell
 npm run release:check
@@ -272,13 +272,18 @@ The registry check reports:
   The check fails rather than assuming the version is available. Only a 404 means
   that the package name is not yet published.
 
-Identical archive checksums allow the check to resume after a partial release.
-The check does not publish anything or reserve versions; run it again if someone
-else may have published since your last check.
+Run the release command with npm credentials that can publish to the
+`@muze-labs` scope.
 
-Publish only packages marked `PUBLISH`, with dependencies first: `state`, then
-`bind`/`model`, then `app`, then `simplyflow`/`simplyedit`, then `simplyflow-edit`.
-The private monorepo root is not published.
+```shell
+npm run release
+```
+
+The command runs tests, rebuilds the bundles, and checks the exact archives it
+will publish. It publishes available versions in dependency order and skips
+identical archives already on npm. If a publish fails, rerun the command to
+resume from the first unpublished package. Use `npm run release -- --dry-run`
+to run the same preflight and print the publish order.
 
 ## License
 

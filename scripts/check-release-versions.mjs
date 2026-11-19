@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const registry = 'https://registry.npmjs.org/'
+export const registry = 'https://registry.npmjs.org/'
 const root = fileURLToPath(new URL('../', import.meta.url))
 
 export async function publishedPackage(name, fetchRegistry = globalThis.fetch) {
@@ -36,6 +36,10 @@ export async function checkReleaseVersions({ cwd = root, fetchRegistry = globalT
         'pack', '--dry-run', '--json', '--workspaces', '--ignore-scripts'
     ], { cwd, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }))
 
+    return checkPackedVersions(packed, { fetchRegistry, report })
+}
+
+export async function checkPackedVersions(packed, { fetchRegistry = globalThis.fetch, report = console.log } = {}) {
     const results = await Promise.allSettled(packed.map(async pkg => ({
         pkg,
         ...releaseStatus(pkg, await publishedPackage(pkg.name, fetchRegistry))
@@ -62,6 +66,7 @@ export async function checkReleaseVersions({ cwd = root, fetchRegistry = globalT
     }
     if (failed) throw new Error('Release version check failed. Nothing was published.')
     report('Release version check passed. Publish only packages marked PUBLISH, in dependency order.')
+    return results.map(result => result.value)
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
