@@ -36,6 +36,26 @@ describe('bind can', () => {
     }
   })
 
+  it('preserves items that select an empty template when a two-way list mounts', async () => {
+    document.body.innerHTML = `
+      <ul data-flow-list="items">
+        <template data-flow-match="hide"></template>
+        <template><li data-flow-field=":value"></li></template>
+      </ul>
+    `
+    const data = signal({ items: ['A', 'hide', 'B'] })
+    const binding = bind({ root: data, twoway: true })
+    try {
+      expect(Array.from(data.items)).toEqual(['A', 'hide', 'B'])
+      await wait()
+      const rows = document.querySelectorAll('ul > li')
+      expect(Array.from(rows, row => row.textContent)).toEqual(['A', 'B'])
+      expect(Array.from(data.items)).toEqual(['A', 'hide', 'B'])
+    } finally {
+      binding.destroy()
+    }
+  })
+
   it('restores cleared rows in place after list data changes', async () => {
     document.body.innerHTML = `<template id="card"><li data-flow-field=":value"></li></template>
       <ul data-flow-list="items"><template data-flow-match="keep"><i>Keep</i></template>
@@ -95,10 +115,13 @@ describe('bind can', () => {
     document.body.innerHTML = `<template id="card"><input data-flow-edit=":value"></template>
       <main data-flow-list="names"><template rel="card"></template></main>`
     const data = signal({ names: ['original'] })
-    const binding = bind({ root: data })
     const host = document.querySelector('main')
     const template = document.getElementById('card')
+    // Keep input within the throttle window regardless of how long focus takes.
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now())
+    let binding
     try {
+      binding = bind({ root: data })
       await wait(0)
       const input = host.querySelector('input')
       template.innerHTML = '<b data-flow-field=":value"></b>'
@@ -114,7 +137,8 @@ describe('bind can', () => {
       await wait()
       expect(host.querySelector('b').textContent).toBe('edited')
     } finally {
-      binding.destroy()
+      clock.mockRestore()
+      binding?.destroy()
     }
   })
 
