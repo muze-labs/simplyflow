@@ -241,6 +241,9 @@ Or check the [examples](examples/) for more information.
 
 This repository is a private npm workspace root. The published main package lives in `packages/simplyflow`; the smaller layer packages live in `packages/state`, `packages/bind`, `packages/model`, and `packages/app`.
 
+The development and test tools require Node.js 22.22.2+ on the 22.x line,
+24.15.0+ on the 24.x line, or 26.0.0+.
+
 ```shell
 npm install
 npm test

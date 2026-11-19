@@ -95,7 +95,7 @@ class SimplyBind
                     return
                 }
                 let context = {
-                    templates: el.querySelectorAll(':scope > template'),
+                    templates: Array.from(el.children).filter(child => child.localName === 'template'),
                     attribute: getBindingAttribute(el),
                     refreshTemplate
                 }
@@ -458,9 +458,7 @@ class SimplyBind
         let rel = template?.getAttribute('rel')
         if (rel) {
             const container = this.options.container
-            const replacement = globalThis.CSS?.escape
-                ? container.querySelector('template#' + CSS.escape(rel))
-                : Array.from(container.querySelectorAll('template[id]')).find(node => node.id === rel)
+            const replacement = container.querySelector('template#' + CSS.escape(rel))
             if (!replacement) {
                 throw new Error('Could not find template with id '+rel)
             }

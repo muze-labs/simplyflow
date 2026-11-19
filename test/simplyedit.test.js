@@ -119,6 +119,7 @@ describe('@muze-labs/simplyedit', () => {
       data: { body: 'Hello editor' }
     })
 
+    const cssSupports = jest.spyOn(CSS, 'supports').mockReturnValue(false)
     try {
       await wait()
       article.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -139,6 +140,7 @@ describe('@muze-labs/simplyedit', () => {
       expect(editor.toolbar.element.style.marginTop).toBe('-4px')
       expect(editor.toolbar.element.style.top).toBe('66px')
     } finally {
+      cssSupports.mockRestore()
       editor.destroy()
       document.createRange = originalCreateRange
       globalThis.getSelection = originalGetSelection

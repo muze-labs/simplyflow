@@ -101,10 +101,10 @@ describe('bind can', () => {
     try {
       await wait(0)
       const input = host.querySelector('input')
+      template.innerHTML = '<b data-flow-field=":value"></b>'
       input.focus()
       input.value = 'edited'
       input.dispatchEvent(new Event('input', { bubbles: true }))
-      template.innerHTML = '<b data-flow-field=":value"></b>'
       expect(binding.rerender(host, template)).toBe(false)
       expect(document.activeElement).toBe(input)
       input.blur()
