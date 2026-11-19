@@ -1,4 +1,4 @@
-import { signal, isSignal, raw, throttledEffect, batch } from '@muze-labs/simplyflow-state'
+import { signal, isSignal, raw, throttledEffect, batch, effect, destroy } from '@muze-labs/simplyflow-state'
 
 /**
  * This class implements a pluggable data model, where you can
@@ -7,6 +7,7 @@ import { signal, isSignal, raw, throttledEffect, batch } from '@muze-labs/simply
  * effects changes.
  */
 class SimplyFlowModel {
+	#destroyed = false
 
 	/**
 	 * Creates a new datamodel, with a state property that contains
@@ -25,10 +26,8 @@ class SimplyFlowModel {
 		if (!this.state.options) {
 			this.state.options = {}
 		}
-		this.effects = [{current:this.state.data}]
-		this.view = {
-      current: this.state.data
-    }
+		this.view = effect(() => this.state.data)
+		this.effects = [this.view]
 	}
 
 	/**
@@ -41,6 +40,9 @@ class SimplyFlowModel {
 	 * list. And the last effect added is set as this.view
 	 */
 	addEffect(fn) {
+		if (this.#destroyed) {
+			throw new Error('simplyflow/model: cannot add an effect to a destroyed model')
+		}
 		if (!fn || typeof fn !=='function') {
 			throw new Error('addEffect requires an effect function as its parameter', { cause: fn })
 		}
@@ -51,6 +53,16 @@ class SimplyFlowModel {
 		}
 		this.view = connectedSignal
 		this.effects.push(this.view)
+	}
+
+	destroy() {
+		if (this.#destroyed) {
+			return
+		}
+		this.#destroyed = true
+		for (const output of this.effects.toReversed()) {
+			destroy(output)
+		}
 	}
 }
 

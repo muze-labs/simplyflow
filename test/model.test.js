@@ -81,6 +81,27 @@ describe('model API contract coverage', () => {
     expect(m.view.current).toBe(6)
   })
 
+  it('follows replaced source data and stops the pipeline on destroy', () => {
+    const m = model({ data: [1] })
+    m.state.data = [2]
+    expect(m.view.current).toEqual([2])
+
+    const transform = jest.fn(input => input.current.map(value => value * 2))
+    try {
+      m.addEffect(input => effect(() => transform(input)))
+      m.state.data = [3]
+      expect(m.view.current).toEqual([6])
+      m.destroy()
+      m.destroy()
+      m.state.data = [4]
+      expect(transform).toHaveBeenCalledTimes(2)
+      expect(m.view.current).toEqual([6])
+      expect(() => m.addEffect(() => {})).toThrow('destroyed model')
+    } finally {
+      m.destroy()
+    }
+  })
+
   it('sorts ascending, descending, preserves original order without sortBy, and supports custom sort functions', async () => {
     const rows = [
       { id: 'b', score: 2 },
