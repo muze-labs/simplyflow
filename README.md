@@ -244,13 +244,15 @@ This repository is a private npm workspace root. The published main package live
 The development and test tools require Node.js 22.22.2+ on the 22.x line,
 24.15.0+ on the 24.x line, or 26.0.0+.
 
+With nvm, run `nvm install` once in this checkout, then `nvm use` in new shells.
+
 ```shell
 npm install
 npm test
 npm run build
 ```
 
-Before publishing, run:
+To preview the workspace packages and check release readiness, run:
 
 ```shell
 npm run release:check
@@ -272,13 +274,23 @@ The registry check reports:
   The check fails rather than assuming the version is available. Only a 404 means
   that the package name is not yet published.
 
-Identical archive checksums allow the check to resume after a partial release.
-The check does not publish anything or reserve versions; run it again if someone
-else may have published since your last check.
+Run the release command to preview the publish order.
 
-Publish only packages marked `PUBLISH`, with dependencies first: `state`, then
-`bind`/`model`, then `app`, then `simplyflow`/`simplyedit`, then `simplyflow-edit`.
-The private monorepo root is not published.
+```shell
+npm run release
+```
+
+The default dry run runs tests, rebuilds the bundles, and checks the exact
+archives against npm. To publish, use credentials for the `@muze-labs` scope
+and pass the publish flag.
+
+```shell
+npm run release -- --publish
+```
+
+Publish mode runs the same checks and uploads available versions in dependency
+order. It skips identical archives already on npm. If a publish fails, rerun
+with the publish flag to resume from the first unpublished package.
 
 ## License
 

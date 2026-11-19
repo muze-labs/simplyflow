@@ -1,5 +1,7 @@
 /** @jest-environment node */
+import { join } from 'node:path'
 import { publishedPackage, releaseStatus } from '../scripts/check-release-versions.mjs'
+import { release } from '../scripts/release.mjs'
 
 const packed = { name: '@muze-labs/example', version: '0.10.3', shasum: 'local-archive' }
 const manifest = (version, shasum) => ({
@@ -44,4 +46,61 @@ test('only HTTP 404 means that a package has not been published', async () => {
 test('network failures and malformed registry replies fail verification', async () => {
     await expect(publishedPackage(packed.name, async () => { throw new Error('offline') })).rejects.toThrow('offline')
     await expect(publishedPackage(packed.name, async () => ({ status: 200, ok: true, json: async () => ({}) }))).rejects.toThrow('invalid package manifest')
+})
+
+const releasePackages = [
+    'simplyflow-state', 'simplyflow-bind', 'simplyflow-model', 'simplyflow-app',
+    'simplyflow', 'simplyedit', 'simplyflow-edit'
+].map(name => ({
+    name: '@muze-labs/' + name, version: '1.0.0',
+    shasum: name, filename: name + '.tgz'
+}))
+
+function mockRelease({ skip, collision } = {}) {
+    const commands = []
+    return {
+        commands,
+        run(command, args) {
+            expect(command).toBe('npm')
+            commands.push(args)
+            if (args[0] === 'pack') {
+                return JSON.stringify(releasePackages.toReversed())
+            }
+        },
+        async fetchRegistry(url) {
+            const name = decodeURIComponent(new URL(url).pathname.slice(1))
+            const pkg = releasePackages.find(entry => entry.name === name)
+            expect(pkg).toBeDefined()
+            if (pkg === skip || pkg === collision) {
+                const shasum = pkg === skip ? pkg.shasum : 'different-archive'
+                return { ok: true, json: async () => manifest(pkg.version, shasum) }
+            }
+            return { status: 404 }
+        },
+        report() {}
+    }
+}
+
+test('publishes the checked archives in dependency order and skips identical versions', async () => {
+    const skipped = releasePackages[0]
+    const options = mockRelease({ skip: skipped })
+    await release({ ...options, publish: true })
+    const [testCommand, buildCommand, packCommand, ...publishCommands] = options.commands
+    expect(testCommand).toEqual(['test'])
+    expect(buildCommand).toEqual(['run', 'build'])
+    expect(packCommand[0]).toBe('pack')
+    expect(publishCommands.map(args => args[0])).toEqual(releasePackages.slice(1).map(() => 'publish'))
+    const destination = packCommand[packCommand.indexOf('--pack-destination') + 1]
+    expect(publishCommands.map(args => args[1]))
+        .toEqual(releasePackages.slice(1).map(pkg => join(destination, pkg.filename)))
+})
+
+test('the default release and a publish with a version collision both leave npm untouched', async () => {
+    const dryRun = mockRelease()
+    await release(dryRun)
+    expect(dryRun.commands.map(args => args[0])).toEqual(['test', 'run', 'pack'])
+
+    const colliding = mockRelease({ collision: releasePackages.at(-1) })
+    await expect(release({ ...colliding, publish: true })).rejects.toThrow('Release version check failed')
+    expect(colliding.commands.map(args => args[0])).toEqual(['test', 'run', 'pack'])
 })
