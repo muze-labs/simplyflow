@@ -123,8 +123,14 @@ order, and the top-level app definition last. Top-level startup and error handli
 keep their usual lifecycle. Inspect a component through its original hierarchy.
 A nested name is also available directly on `app.components` when the name is free.
 
-The top-level definition is always available as `app.components.app`, including
-when the app has no supplied components. Components can supply defaults in `data`. On each mount,
+The top-level definition is available as `app.components.app`. When the caller
+supplies a component map, `app.components.app.components` records its root
+entries in mount order. The map keeps references to the authored components.
+An IDE can traverse it to reproduce precedence. For example, if `A` includes
+`B` and both define a `save` command, roots `{ A }` select `A.commands.save`, while roots
+`{ A, B }` select `B.commands.save`. Both apps expose `app.components.B` for inspection.
+
+Components can supply defaults in `data`. On each mount,
 SimplyFlow calls `structuredClone` on each component’s data before merging its
 fields in component order. Top-level `options.data` takes precedence. A later
 field replaces an earlier value, including an array or object, unless both

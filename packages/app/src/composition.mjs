@@ -156,9 +156,13 @@ export function composeApp(definition)
     const { data, components: suppliedComponents } = definition
     const authored = Object.getOwnPropertyDescriptors(definition)
     delete authored.data
-    delete authored.components
-    const appDefinition = Object.create(Object.getPrototypeOf(definition), authored)
     const components = { ...suppliedComponents }
+    if (suppliedComponents != null) {
+        authored.components = dataProperty({ ...components })
+    } else {
+        delete authored.components
+    }
+    const appDefinition = Object.create(Object.getPrototypeOf(definition), authored)
     const definitions = [...componentDefinitions(components), ['app', appDefinition]]
     const descriptors = Object.create(null)
     let initialData

@@ -320,6 +320,33 @@ describe('app API', () => {
     }
   })
 
+  it('reconstructs command precedence from the mounted app’s ordered roots', () => {
+    const B = { commands: { save() { return 'B' } } }
+    const A = { components: { B }, commands: { save() { return 'A' } } }
+    for (const [roots, winner] of [[{ A }, A], [{ A, B }, B], [{ B, A }, A]]) {
+      const order = Object.keys(roots)
+      const mounted = app({ components: roots })
+      try {
+        expect(mounted.commands.save).toBe(winner.commands.save)
+        expect(mounted.components.A).toBe(A)
+        expect(mounted.components.B).toBe(B)
+        mounted.commands.save = () => 'personal'
+        delete roots.A
+
+        const authored = mounted.components.app
+        expect(Object.keys(authored.components)).toEqual(order)
+        const rebuilt = app(authored)
+        try {
+          expect(rebuilt.commands.save).toBe(winner.commands.save)
+        } finally {
+          rebuilt.destroy()
+        }
+      } finally {
+        mounted.destroy()
+      }
+    }
+  })
+
   it('retains same-named components, top-level lifecycle and service identity', () => {
     const nested = { transformers: { label() {} } }
     const shared = mergeable({ details: mergeable({ base: true }) })
