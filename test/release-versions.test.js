@@ -84,7 +84,7 @@ function mockRelease({ skip, collision } = {}) {
 test('publishes the checked archives in dependency order and skips identical versions', async () => {
     const skipped = releasePackages[0]
     const options = mockRelease({ skip: skipped })
-    await release(options)
+    await release({ ...options, publish: true })
     const [testCommand, buildCommand, packCommand, ...publishCommands] = options.commands
     expect(testCommand).toEqual(['test'])
     expect(buildCommand).toEqual(['run', 'build'])
@@ -95,12 +95,12 @@ test('publishes the checked archives in dependency order and skips identical ver
         .toEqual(releasePackages.slice(1).map(pkg => join(destination, pkg.filename)))
 })
 
-test('a dry run and a version collision both leave npm untouched', async () => {
+test('the default release and a publish with a version collision both leave npm untouched', async () => {
     const dryRun = mockRelease()
-    await release({ ...dryRun, dryRun: true })
+    await release(dryRun)
     expect(dryRun.commands.map(args => args[0])).toEqual(['test', 'run', 'pack'])
 
     const colliding = mockRelease({ collision: releasePackages.at(-1) })
-    await expect(release(colliding)).rejects.toThrow('Release version check failed')
+    await expect(release({ ...colliding, publish: true })).rejects.toThrow('Release version check failed')
     expect(colliding.commands.map(args => args[0])).toEqual(['test', 'run', 'pack'])
 })

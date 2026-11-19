@@ -272,18 +272,23 @@ The registry check reports:
   The check fails rather than assuming the version is available. Only a 404 means
   that the package name is not yet published.
 
-Run the release command with npm credentials that can publish to the
-`@muze-labs` scope.
+Run the release command to preview the publish order.
 
 ```shell
 npm run release
 ```
 
-The command runs tests, rebuilds the bundles, and checks the exact archives it
-will publish. It publishes available versions in dependency order and skips
-identical archives already on npm. If a publish fails, rerun the command to
-resume from the first unpublished package. Use `npm run release -- --dry-run`
-to run the same preflight and print the publish order.
+The default dry run runs tests, rebuilds the bundles, and checks the exact
+archives against npm. To publish, use credentials for the `@muze-labs` scope
+and pass the publish flag.
+
+```shell
+npm run release -- --publish
+```
+
+Publish mode runs the same checks and uploads available versions in dependency
+order. It skips identical archives already on npm. If a publish fails, rerun
+with the publish flag to resume from the first unpublished package.
 
 ## License
 

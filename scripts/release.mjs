@@ -17,7 +17,7 @@ const releaseOrder = [
 ]
 
 export async function release({
-    dryRun = false,
+    publish = false,
     run = execFileSync,
     fetchRegistry = globalThis.fetch,
     report = console.log
@@ -45,8 +45,8 @@ export async function release({
             if (state !== 'publish') {
                 continue
             }
-            report(`${dryRun ? 'Would publish' : 'Publishing'} ${pkg.name}@${pkg.version}`)
-            if (!dryRun) {
+            report(`${publish ? 'Publishing' : 'Would publish'} ${pkg.name}@${pkg.version}`)
+            if (publish) {
                 npm([
                     'publish', join(directory, pkg.filename), '--access', 'public',
                     '--registry', registry, '--ignore-scripts'
@@ -61,10 +61,12 @@ export async function release({
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
     try {
         const args = process.argv.slice(2)
-        if (args.some(arg => arg !== '--dry-run')) {
-            throw new Error('Usage: npm run release -- [--dry-run]')
+        const [mode] = args
+        if (args.length > 1 || (mode && mode !== '--publish' && mode !== '--dry-run')) {
+            throw new Error('Usage: npm run release [-- --publish]')
         }
-        await release({ dryRun: args.includes('--dry-run') || process.env.npm_config_dry_run === 'true' })
+        const publish = mode === '--publish' && process.env.npm_config_dry_run !== 'true'
+        await release({ publish })
     } catch (error) {
         console.error(error.message)
         process.exitCode = 1
