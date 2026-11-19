@@ -29,6 +29,12 @@ const counter = app({
 </div>
 ```
 
+Always read and write application state through `app.data` (`counter.data` in
+this example, or `this.data` inside its commands and actions). If you pass an
+existing signal as `data`, the app can reuse it. When SimplyFlow merges
+component defaults into that data, it creates a new root signal. Updating a
+top-level field on the original signal then leaves the app’s field unchanged.
+
 For editable values, use `data-simply-edit`:
 
 ```html
