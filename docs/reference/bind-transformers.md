@@ -23,30 +23,7 @@ function transformer(context, next) {
 }
 ```
 
-Transformers are called with `this` set to the binding instance. Named
-transformers used through `app()` receive the owning app as a third argument
-in both the render and extract hooks. Standalone `bind()` calls use
-`(context, next)`.
-
-## Replacing a named transformer
-
-The app binding looks up a named transformer each time it renders or extracts.
-Use `app.transformerOverrides` to replace one temporarily and delete the entry
-to restore the underlying app, component or built-in definition.
-
-```js
-app.transformerOverrides.storyLink = function(context, next, app) {
-  context.value = { href: new URL(`#story/${context.value}`, app.baseURL || location.href).href }
-  return next(context)
-}
-
-delete app.transformerOverrides.storyLink
-```
-
-Updating or removing an override takes effect on the next ordinary binding
-evaluation. Existing values remain on screen until a render runs. Direct edits
-to `app.transformers` also affect subsequent evaluations when there is no
-override for that name.
+Transformers are called with `this` set to the binding instance.
 
 ## Render and extract transformer signature
 

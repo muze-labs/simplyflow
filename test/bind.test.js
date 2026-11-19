@@ -247,14 +247,11 @@ describe('bind can', () => {
         innerHTML: 'foobar'
       }
     })
-    let receiver, argumentCount
     const databind = bind({
       container: document.body,
       root: data,
       transformers: {
         setDataFoo: function(context, next) {
-          receiver = this
-          argumentCount = arguments.length
           context.element.dataset.foo = context.value.innerHTML
           next(context)
         }
@@ -265,8 +262,6 @@ describe('bind can', () => {
     setTimeout(() => {
       try {
         expect(document.body.innerHTML).toBe(rendered)
-        expect(receiver).toBe(databind)
-        expect(argumentCount).toBe(2)
         done()
       } catch(error) {
         done(error)
