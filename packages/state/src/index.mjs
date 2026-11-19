@@ -897,17 +897,25 @@ function runBatchedListeners() {
     runListeners(ready)
 }
 
+function scheduleTimeout(run, delay)
+{
+    const timer = globalThis.setTimeout(run, delay)
+    return () => globalThis.clearTimeout(timer)
+}
+
 /**
  * Runs fn as an effect, throttling reruns to at most once per throttleTime milliseconds.
  *
  * @param {Function} fn Effect function to run and track.
  * @param {number} throttleTime Minimum time in milliseconds between reruns after the initial run.
+ * @param {object} [options]
+ * @param {Function} [options.schedule] Schedules a callback after a delay and returns its cancellation function.
  * @returns {Proxy} Signal whose current property contains the latest effect result.
  * @throws {TypeError} If fn is not a function or throttleTime is not a non-negative finite number.
  * @throws {Error} If fn is already running recursively or creates a cyclic dependency.
  * @throws {*} Re-throws errors from fn during the initial run.
  */
-export function throttledEffect(fn, throttleTime) {
+export function throttledEffect(fn, throttleTime, { schedule = scheduleTimeout } = {}) {
     assertFunction(fn, 'throttledEffect')
     if (!Number.isFinite(throttleTime) || throttleTime < 0) {
         throw new TypeError('simplyflow/state: throttledEffect() expects throttleTime to be a non-negative number')
@@ -918,13 +926,13 @@ export function throttledEffect(fn, throttleTime) {
     const connectedSignal = effectSignal(fn)
     let throttledUntil = 0
     let hasChange = true
-    let timeout = null
+    let cancelPending = null
 
     const compute = function computeEffect() {
         const now = Date.now()
         if (throttledUntil > now) {
             hasChange = true
-            schedule()
+            scheduleUpdate()
             return
         }
 
@@ -933,14 +941,14 @@ export function throttledEffect(fn, throttleTime) {
         throttledUntil = Date.now() + throttleTime
     }
 
-    function schedule() {
-        if (timeout) {
+    function scheduleUpdate() {
+        if (cancelPending) {
             return
         }
 
         const delay = Math.max(0, throttledUntil - Date.now())
-        timeout = globalThis.setTimeout(() => {
-            timeout = null
+        cancelPending = schedule(() => {
+            cancelPending = null
             if (hasChange) {
                 compute()
             }
@@ -949,15 +957,16 @@ export function throttledEffect(fn, throttleTime) {
 
     compute.fn = fn
     compute.destroy = flush => {
-        if (flush && hasChange) {
-            throttledUntil = 0
-            compute()
+        try {
+            if (flush && hasChange) {
+                throttledUntil = 0
+                compute()
+            }
+        } finally {
+            cancelPending?.()
+            cancelPending = null
+            hasChange = false
         }
-        if (timeout) {
-            globalThis.clearTimeout(timeout)
-            timeout = null
-        }
-        hasChange = false
     }
     effectMap.set(connectedSignal, compute)
 

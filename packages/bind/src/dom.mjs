@@ -211,7 +211,7 @@ export function trackDomList(element)
                 }
             })
         })
-    }, 50)
+    }, 50, { schedule: this.scheduleUpdate })
     domEffects.set(element, effect)
     return s
 }
@@ -272,7 +272,7 @@ export function trackDomField(element, props, valueIsString, stringProperty = 'i
                 // don't trigger this effect when the data changes (root.path)
                 setValueByPath(this.options.root, path, updateValue, { replace: context?.replaceValue })
             })
-        }, 50)
+        }, 50, { schedule: this.scheduleUpdate })
         domEffects.set(element, effect)
     })
     return s

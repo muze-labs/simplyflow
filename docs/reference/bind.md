@@ -126,6 +126,15 @@ Returns the value at a binding path. Supports binding special paths such as `:ro
 
 Returns global binding trace data for a path.
 
+## Waiting for bindings
+
+After changing bound data or adding bound elements, await `binding.whenIdle()`
+to wait for this binding's scheduled DOM updates, including bindings on new
+children. An app can use `await app.binding.whenIdle()` before focusing a
+control that a list update creates. The promise also settles when the binding
+is destroyed. Browser paint, layout and asynchronous work outside the
+binding have their own completion signals.
+
 ## Refreshing a template
 
 Bindings resolve `<template rel="card">` within their container. Put the

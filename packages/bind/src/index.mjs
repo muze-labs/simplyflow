@@ -13,6 +13,10 @@ import { DEP } from '@muze-labs/simplyflow-state/symbols'
  */
 class SimplyBind
 {
+    #pendingUpdates = 0
+    #idleWaiters = []
+    #idleTimer = null
+
     
     /**
      * @param Object options - a set of options for this instance, options may include:
@@ -106,7 +110,7 @@ class SimplyBind
                 context.element = el
                 track(el, context)
                 runTransformers(context)
-            }, 50))
+            }, 50, { schedule: this.scheduleUpdate }))
         }
 
         // finds and runs applicable render transformers
@@ -486,6 +490,57 @@ class SimplyBind
         return template
     }
 
+    scheduleUpdate = (run, delay) => {
+        this.#pendingUpdates++
+        const finish = () => {
+            this.#pendingUpdates--
+            this.#checkIdle()
+        }
+        const timer = setTimeout(() => {
+            try {
+                run()
+            } finally {
+                finish()
+            }
+        }, delay)
+        return () => {
+            clearTimeout(timer)
+            finish()
+        }
+    }
+
+    whenIdle()
+    {
+        if (!this.observer) {
+            return Promise.resolve()
+        }
+        return new Promise(resolve => {
+            this.#idleWaiters.push(resolve)
+            this.#checkIdle()
+        })
+    }
+
+    #checkIdle()
+    {
+        if (this.#pendingUpdates || !this.#idleWaiters.length || this.#idleTimer !== null) {
+            return
+        }
+        // Let mutation observers bind newly rendered children before settling.
+        this.#idleTimer = setTimeout(() => {
+            this.#idleTimer = null
+            if (!this.#pendingUpdates) {
+                this.#resolveIdleWaiters()
+            }
+        }, 0)
+    }
+
+    #resolveIdleWaiters()
+    {
+        for (const resolve of this.#idleWaiters.splice(0)) {
+            resolve()
+        }
+    }
+
     releaseBinding(element, flush = false)
     {
         const binding = this.bindings.get(element)
@@ -504,6 +559,9 @@ class SimplyBind
         }
         this.observer?.disconnect()
         this.observer = null
+        clearTimeout(this.#idleTimer)
+        this.#idleTimer = null
+        this.#resolveIdleWaiters()
     }
 
 }
