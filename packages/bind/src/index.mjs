@@ -164,6 +164,23 @@ class SimplyBind
             return true
         }
 
+        const selector = bindAttributes.map(name => `[${name}]`).join(',')
+        this.rebindListItem = item => {
+            // Finish moving rows before re-reading their updated binding paths.
+            queueMicrotask(() => {
+                if (!this.observer || !this.options.container.contains(item)) {
+                    return
+                }
+                for (const node of [item, ...item.querySelectorAll(selector)]) {
+                    const previous = this.bindings.get(node)
+                    if (previous) {
+                        renderElement(node)
+                        destroy(previous)
+                    }
+                }
+            })
+        }
+
         // given a set of elements with data bind attribute
         // this renders each of those elements
         const applyBindings = (bindings) => {
@@ -178,7 +195,6 @@ class SimplyBind
         // if any element is added, and has a data bind attribute
         // it applies that data binding
         const updateBindings = (changes) => {
-            const selector = `[${attribute}-field],[${attribute}-edit],[${attribute}-list],[${attribute}-map]`
             for (const change of changes) {
                 if (change.type=="childList" && change.addedNodes) {
                     for (let node of change.addedNodes) {

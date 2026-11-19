@@ -73,6 +73,13 @@ With the default `data-flow` prefix:
 
 `data-flow-list` accepts arrays and single values. Arrays render one item per array element. A single object or scalar renders as a one-item list. `null` and `undefined` render no items. This is useful for linked-data style properties where the same field may contain one value or many values.
 
+Add `data-flow-list-key="id"` to an ordered list to identify rows by a
+stable item property. An app using the default prefix writes
+`data-simply-list-key="id"`. The path is relative to the item and must return
+a unique string or finite number for every row. With the same key and
+template, a new object can reuse the existing row and its bindings. The
+generated row key still holds the current array index.
+
 Inside a list template, relative paths are resolved against the current item. Special paths include:
 
 | Path | Meaning |

@@ -176,8 +176,7 @@ export function trackDomList(element)
     if (domEffects.has(element)) {
         return getSignal(element)
     }
-    const path = this.getBindingPath(element)
-    if (!path) {
+    if (!this.getBindingPath(element)) {
         throw new Error('Could not find binding path for element', { cause: element })
     }
     const s = signal(element, {
@@ -190,6 +189,7 @@ export function trackDomList(element)
         untracked(() => { // don't track access to the data, only track dom changes
             batch(() => { // apply all changes in the list as one change
                 let key=0
+                const path = this.getBindingPath(element)
                 const currentList = getValueByPath(this.options.root, path)
                 const source = currentList.slice() // make sure changes in currentList don't affect the original source
                 for (const item of element.childNodes) {
@@ -225,8 +225,7 @@ export function trackDomField(element, props, valueIsString, stringProperty = 'i
     if (domEffects.has(element)) {
         return
     }
-    const path = this.getBindingPath(element)
-    if (!path) {
+    if (!this.getBindingPath(element)) {
         throw new Error('Could not find binding path for element', { cause: element })
     }
     const s = signal(element)
@@ -252,12 +251,16 @@ export function trackDomField(element, props, valueIsString, stringProperty = 'i
                 // a string. Do not write that string straight back to the data
                 // when it still represents the current value. This keeps numbers
                 // and booleans stable after one-way rendering in a two-way bind.
+                const path = this.getBindingPath(element)
                 const currentValue = getValueByPath(this.options.root, path)
                 if (getUpdateValue) {
                     updateValue = getUpdateValue.call(this, s, currentValue)
                 }
                 if (typeof updateValue === 'undefined') {
                     return
+                }
+                if (context) {
+                    context.path = path
                 }
                 updateValue = this.extractValue?.(context, updateValue, currentValue) ?? updateValue
                 if (typeof updateValue === 'undefined') {

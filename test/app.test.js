@@ -958,6 +958,41 @@ describe('app API', () => {
 
 
 describe('app integration details', () => {
+  it('keeps a keyed row focused and rebinds its controls after replacement and reorder', async () => {
+    document.body.innerHTML = `<ul data-simply-list="rows" data-simply-list-key="id">
+      <template><li><button data-simply-command="select" data-simply-value=":value.id">
+          <span data-simply-field="label"></span></button>
+        <input data-simply-edit="label"></li></template></ul>`
+    const select = jest.fn()
+    const mounted = app({
+      data: { rows: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] },
+      commands: { select }
+    })
+    try {
+      await wait()
+      const buttons = document.querySelectorAll('button')
+      const focused = buttons[1]
+      focused.focus()
+
+      mounted.data.rows = [{ id: 'b', label: 'New B' }, { id: 'a', label: 'New A' }]
+      await wait()
+      expect([...document.querySelectorAll('button')]).toEqual([buttons[1], buttons[0]])
+      expect(document.activeElement).toBe(focused)
+      expect(focused.textContent.trim()).toBe('New B')
+      focused.click()
+      expect(select).toHaveBeenCalledWith(focused, 'b', expect.any(MouseEvent))
+
+      const input = focused.parentElement.querySelector('input')
+      expect(input.value).toBe('New B')
+      input.value = 'Edited B'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await wait()
+      expect(mounted.data.rows.map(row => row.label)).toEqual(['Edited B', 'New A'])
+    } finally {
+      mounted.destroy()
+    }
+  })
+
   it('renders and refreshes each app’s local card template', () => {
     const list = '<ul data-simply-list="items"><template rel="card"></template></ul>'
     document.body.innerHTML = `<main>${list}</main><aside>${list}</aside>`
