@@ -7,7 +7,7 @@ import { shortcuts, destroyShortcuts, accesskeys, destroyAccesskeys } from './sh
 import { dragdrop } from './dragdrop.mjs'
 import { behaviors } from './behavior.mjs'
 import { includes } from './include.mjs'
-import { composeApp } from './composition.mjs'
+import { composeApp, definitionView, onDefinitionChange } from './composition.mjs'
 import { closest } from './suggest.mjs'
 
 const APP_OPTIONS = [
@@ -34,24 +34,26 @@ class SimplyApp
 {
     constructor(definition={})
     {
-        const { options, components, transformers } = composeApp(definition)
-        this.container = options.container || document.body
+        const { data, options, components } = composeApp(definition)
+        const app = definitionView(this, options, [
+            'transformers', 'actions', 'commands', 'shortcuts', 'behaviors',
+            'routes', 'templates', 'styles', 'drags', 'drops'
+        ])
+        const container = options.container
         this.destroyed = false
-        this.data = signal(options.data || {})
-        this.start = options.start
-        this.onError = options.onError
+        this.data = signal(data || {})
         this.components = components
-        this.baseURL = options.baseURL
-        this.transformers = transformers
 
-        installTemplates(this.container, options.templates)
-        installStyles(this.container, options.styles)
+        installMarkup(container, options.templates, 'template')
+        installMarkup(container, options.styles, 'style')
 
         for (const key of Object.keys(options)) {
             switch(key) {
                 case 'container':
                 case 'data':
                 case 'attribute':
+                case 'drags':
+                case 'drops':
                 case 'templates':
                 case 'styles':
                 case 'start':
@@ -61,19 +63,23 @@ class SimplyApp
                 case 'transformers':
                     break
                 case 'commands':
-                    this.commands = commands({ app: this, container: this.container, commands: options.commands})
+                    this.commands = commands({ app, container, commands: options.commands})
                     break
                 case 'shortcuts':
-                    this.shortcuts = shortcuts({ app: this, shortcuts: options.shortcuts })
+                    this.shortcuts = shortcuts({ app, shortcuts: options.shortcuts })
                     break
                 case 'behaviors':
-                    this.behaviors = behaviors({ app: this, container: this.container, behaviors: options.behaviors })
+                    this.behaviors = definitionView(behaviors({
+                        app, container, behaviors: options.behaviors
+                    }), options.behaviors || {})
                     break
                 case 'routes':
-                    this.routes = routes({ app: this, routes: options.routes})
+                    this.routes = definitionView(
+                        routes({ app, routes: options.routes }), options.routes || {}
+                    )
                     break
                 case 'actions':
-                    this.actions = actions({app: this, actions: options.actions})
+                    this.actions = actions({app, actions: options.actions})
                     break
                 case 'prototype':
                 case '__proto__':
@@ -83,25 +89,30 @@ class SimplyApp
                     // Unknown options become app properties. Warn only when the
                     // name is close to a built-in option, which usually means a typo.
                     warnLikelyOptionTypo(key)
-                    this[key] = options[key]
                     break
             }
         }
 
         this.binding = bind({
             root: this.data,
-            container: this.container,
+            container,
             attribute: options.attribute || 'data-simply',
-            app: this
+            app
         })
 
         if (options.drags || options.drops) {
-            this.dragdrop = dragdrop({ app: this, drags: options.drags, drops: options.drops })
+            this.dragdrop = dragdrop({ app, drags: options.drags, drops: options.drops })
         }
 
-        this.includes = includes({ container: this.container })
+        onDefinitionChange(options, keys => {
+            if (keys.includes('baseURL') && this.routes) {
+                this.routes.init({ baseURL: options.baseURL || '/' })
+            }
+        })
+        this.includes = includes({ container })
 
-        this.accesskeys = accesskeys({ app: this, container: this.container })
+        this.accesskeys = accesskeys({ app, container })
+        return app
     }
 
     get app()
@@ -112,6 +123,8 @@ class SimplyApp
     destroy()
     {
         this.destroyed = true
+        onDefinitionChange(this.templates, undefined)
+        onDefinitionChange(this.styles, undefined)
         if (this.dragdrop) {
             this.dragdrop.destroy()
         }
@@ -144,42 +157,32 @@ class SimplyApp
     }
 }
 
-function installTemplates(container, templates)
+function installMarkup(container, definitions, tag)
 {
-    if (!templates) {
-        return
-    }
-    for (const name of Object.keys(templates)) {
-        const element = document.createElement('div')
-        element.innerHTML = templates[name]
-        let template = container.querySelector('template#'+name)
-        if (!template) {
-            template = document.createElement('template')
-            template.id = name
-            template.content.append(...element.children)
-            container.appendChild(template)
+    if (!definitions) return
+    function update(name) {
+        const id = tag === 'style' ? name + '.css' : name
+        let node = Array.from(container.querySelectorAll(tag)).find(node => node.id === id)
+        if (!Object.hasOwn(definitions, name)) {
+            node?.remove()
+            return
+        }
+        if (!node) {
+            node = document.createElement(tag)
+            node.id = id
+            container.appendChild(node)
+        }
+        if (tag === 'template') {
+            const element = document.createElement('div')
+            element.innerHTML = definitions[name]
+            node.content.replaceChildren(...element.children)
         } else {
-            template.content.replaceChildren(...element.children)
+            node.textContent = definitions[name]
         }
     }
+    Object.keys(definitions).forEach(update)
+    onDefinitionChange(definitions, names => names.forEach(update))
 }
-
-function installStyles(container, styles)
-{
-    if (!styles) {
-        return
-    }
-    for (const name of Object.keys(styles)) {
-        let style = container.querySelector('style#'+name+'.css')
-        if (!style) {
-            style = document.createElement('style')
-            style.id = name+'.css'
-            container.appendChild(style)
-        }
-        style.innerHTML = styles[name]
-    }
-}
-
 
 function warnLikelyOptionTypo(key)
 {

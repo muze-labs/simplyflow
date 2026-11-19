@@ -67,7 +67,7 @@ const contacts = app({
 | `start` | `function` | Optional startup function called with `this` set to the app. Routes are initialized after it finishes. |
 | `onError` | `function` | Optional error handler for `start()` and action errors. |
 
-Unknown top-level options are copied onto the app instance. This is useful for services:
+Custom top-level options are available as properties on the app. This is useful for services:
 
 ```js
 app({
@@ -114,7 +114,12 @@ keep their usual lifecycle. Inspect a component through its original hierarchy.
 A nested name is also available directly on `app.components` when the name is free.
 
 The top-level definition is always available as `app.components.app`, including
-when the app has no supplied components. SimplyFlow reserves the exact component
+when the app has no supplied components. Pass reactive state through the top-level
+`data` option. It lives on `app.data` and is excluded from the component
+registry. A supplied component that declares its own `data` causes an error.
+Component methods can read and update the owning app’s data.
+
+SimplyFlow reserves the exact component
 name `app` at every level. Rename any component with that name before calling
 `simply.app()`, or construction will throw an error.
 
@@ -134,7 +139,21 @@ hook and `renderNewsLabel`. Replacing the named entry temporarily replaces the
 whole transformer. Deleting it merges that name again, including any deliberate
 edits to the source definitions. An entry added only to the running app
 disappears on deletion. Binding uses the result on its next render or extraction.
-This edit and restore behavior applies to named entries in `app.transformers`.
+The same rule applies to merged properties throughout the app. For example,
+assign `news.commands.save` or `news.api.formatLabel` to change that entry for
+one app. Delete the entry to restore it from the current component definitions.
+Deleting a property from `news.data` removes the value from reactive state.
+
+Plain objects supplied as top-level services also become editable definition
+maps. If you pass `{ api }` to `simply.app()`, edits to `news.api.formatLabel`
+leave the supplied plain object intact. A supplied class instance retains its
+identity. Arrays have ordinary array deletion and can be restored by deleting
+the property that contains them.
+
+Installed commands, shortcuts, routes and drag/drop handlers use the current
+definition on their next dispatch. Behaviors use it when they next start.
+Edits to template and style definitions update their installed elements.
+The container and binding attribute select where to mount at startup.
 
 ## Binding transformers
 

@@ -1,5 +1,6 @@
 import { TextDecoder, TextEncoder } from 'node:util'
 import { jest } from '@jest/globals'
+import { app } from '@muze-labs/simplyflow-app'
 import { dragdrop } from '../packages/app/src/dragdrop.mjs'
 
 const format = 'application/x-test-card'
@@ -71,6 +72,32 @@ function source(id = 'Card-É') {
 }
 
 describe('dragdrop API', () => {
+  it('dispatches app-local drag and drop edits and restores the component handlers', () => {
+    document.body.innerHTML = '<article draggable="true" data-simply-drag="card"></article>' +
+      '<section data-simply-drop="column"></section>'
+    const calls = []
+    const drag = label => () => {
+      calls.push('drag ' + label)
+      return { data: { [format]: label } }
+    }
+    const column = { drop(element, value, drag) { calls.push(drag.data[format]) } }
+    const board = { drags: { card: drag('source') }, drops: { column } }
+    const testApp = app({ components: { board } })
+    controllers.push(testApp)
+    const session = () => {
+      const dt = transfer()
+      dispatch(document.querySelector('article'), 'dragstart', dt)
+      dispatch(document.querySelector('section'), 'drop', dt)
+    }
+    testApp.drags.card = drag('edited')
+    testApp.drops.column.drop = () => calls.push('edited drop')
+    session()
+    delete testApp.drags.card
+    delete testApp.drops.column.drop
+    session()
+    expect(calls).toEqual(['drag edited', 'edited drop', 'drag source', 'source'])
+  })
+
   it('exposes metadata during hover and captures the payload before an async drop handler resumes', async () => {
     const card = source()
     const calls = []

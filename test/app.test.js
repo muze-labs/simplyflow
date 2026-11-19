@@ -261,6 +261,31 @@ describe('app API', () => {
     expect(document.querySelector('template#card')).toBeNull()
   })
 
+  it.each([
+    { editor: { data: {} } },
+    { outer: { components: { editor: { data: undefined } } } }
+  ])('rejects component data before startup', components => {
+    const start = jest.fn()
+    expect(() => app({ components, start })).toThrow(/component "editor" declares data/)
+    expect(start).not.toHaveBeenCalled()
+  })
+
+  it('keeps reactive data exclusively on each app', () => {
+    const editor = { actions: { discard() { delete this.data.draft } } }
+    const first = app({ data: { draft: 'first' }, components: { editor } })
+    const second = app({ data: { draft: 'second' }, components: { editor } })
+    try {
+      first.actions.discard()
+      expect(Object.hasOwn(first.data, 'draft')).toBe(false)
+      expect(second.data.draft).toBe('second')
+      expect(Object.hasOwn(first.components.app, 'data')).toBe(false)
+      expect(Object.hasOwn(editor, 'data')).toBe(false)
+    } finally {
+      first.destroy()
+      second.destroy()
+    }
+  })
+
   it('retains same-named components, top-level lifecycle and service identity', () => {
     const nested = { transformers: { label() {} } }
     const shared = { details: { base: true } }
@@ -299,12 +324,184 @@ describe('app API', () => {
     }
   })
 
+  it('restores custom properties and nested service methods from current definitions', () => {
+    const shared = { api: { labels: { format: () => 'shared' } }, title: 'component' }
+    const api = { labels: { alternate: () => 'alternate' } }
+    const testApp = app({ components: { shared }, api, title: 'top' })
+    try {
+      const local = () => 'local'
+      testApp.api.labels.format = local
+      testApp.api.labels.alternate = local
+      shared.api.labels.format = () => 'revised'
+      delete testApp.api.labels.format
+      expect(testApp.api.labels.format()).toBe('revised')
+      expect(testApp.api.labels.alternate()).toBe('local')
+      expect(api.labels.alternate()).toBe('alternate')
+
+      testApp.api = { local }
+      delete testApp.api
+      expect(testApp.api.labels.alternate()).toBe('alternate')
+      expect(testApp.api.labels.format()).toBe('revised')
+      testApp.title = 'session'
+      delete testApp.title
+      expect(testApp.title).toBe('top')
+      delete testApp.components.app.title
+      delete testApp.title
+      expect(testApp.title).toBe('component')
+      testApp.temporary = true
+      delete testApp.temporary
+      expect(Object.hasOwn(testApp, 'temporary')).toBe(false)
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('dispatches current commands, actions, shortcuts and routes after deletion', () => {
+    document.body.innerHTML = '<button data-simply-command="save">Save</button>'
+    const calls = []
+    const editor = {
+      commands: { save() { this.actions.save() } },
+      actions: { save() { calls.push('original') } },
+      shortcuts: { default: { s() { this.actions.save() } } },
+      routes: { '/save': 'save' }
+    }
+    const testApp = app({ components: { editor } })
+    const click = () => document.querySelector('button').click()
+    const key = () => document.body.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 's', bubbles: true
+    }))
+    try {
+      testApp.commands.save = () => calls.push('command')
+      click()
+      delete testApp.commands.save
+      testApp.actions.save = () => calls.push('action')
+      click()
+      delete testApp.actions.save
+      click()
+      testApp.shortcuts.default.s = () => { calls.push('shortcut') }
+      key()
+      delete testApp.shortcuts.default.s
+      key()
+      testApp.routes['/save'] = () => calls.push('route')
+      testApp.routes.match('/save')
+      delete testApp.routes['/save']
+      testApp.routes.match('/save')
+      expect(calls).toEqual(['command', 'action', 'original', 'shortcut', 'original', 'route', 'original'])
+
+      testApp.commands = { save() { calls.push('whole section') } }
+      click()
+      editor.commands.save = () => calls.push('revised')
+      delete testApp.commands
+      click()
+      expect(calls.slice(-2)).toEqual(['whole section', 'revised'])
+    } finally {
+      testApp.destroy()
+    }
+    click()
+    expect(calls.at(-1)).toBe('revised')
+  })
+
+  it('preserves routing order, loaded routes and listeners across edits', () => {
+    const calls = []
+    const testApp = app({ routes: {
+      '/item/:id': () => 'first',
+      '/item/special': () => 'second'
+    } })
+    try {
+      const router = testApp.routes
+      router.load({ '/extra': () => 'extra' })
+      router.addListener('match', '/item/:id', () => { calls.push('match') })
+      testApp.routes = {
+        '/item/special': () => 'specific',
+        '/item/:id': () => 'generic'
+      }
+      expect(router.match('/item/special')).toBe('specific')
+      expect(() => { testApp.routes['/:*'] = () => 'bad' }).toThrow(/wildcard/)
+      expect(Object.hasOwn(testApp.routes, '/:*')).toBe(false)
+      delete testApp.routes
+      expect(router.match('/item/special')).toBe('first')
+      expect(router.match('/extra')).toBe('extra')
+      expect(calls).toEqual(['match', 'match'])
+      expect(router.has('/eventHandlers')).toBe(false)
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('uses restored behaviors on the next mount and runs the matching cleanup', () => {
+    const calls = []
+    const start = name => () => {
+      calls.push(name)
+      return () => calls.push('stop ' + name)
+    }
+    const testApp = app({ behaviors: { card: start('original') } })
+    const node = document.createElement('div')
+    node.dataset.simplyBehavior = 'card'
+    try {
+      testApp.behaviors.card = start('local')
+      testApp.behaviors.start(node)
+      delete testApp.behaviors.card
+      testApp.behaviors.stop(node)
+      testApp.behaviors.start(node)
+    } finally {
+      testApp.destroy()
+    }
+    expect(calls).toEqual(['local', 'stop local', 'original', 'stop original'])
+  })
+
+  it('isolates plain services passed directly to two apps', () => {
+    const api = { label: () => 'source', names: ['original'] }
+    api.self = api
+    const first = app({ api })
+    const second = app({ api })
+    try {
+      first.api.label = () => 'local'
+      first.api.names.pop()
+      expect(first.api.self).toBe(first.api)
+      expect(second.api.label()).toBe('source')
+      expect(api.label()).toBe('source')
+      expect(second.api.names).toEqual(['original'])
+      expect(api.names).toEqual(['original'])
+      api.label = () => 'revised'
+      delete first.api.label
+      delete first.api.names
+      expect(first.api.label()).toBe('revised')
+      expect(first.api.names).toEqual(['original'])
+    } finally {
+      first.destroy()
+      second.destroy()
+    }
+  })
+
+  it('reapplies installed template and style entries when edits are deleted', () => {
+    const editor = { templates: { card: '<b>A</b>' }, styles: { card: 'b { color: red }' } }
+    const testApp = app({ components: { editor } })
+    try {
+      testApp.templates.card = '<i>B</i>'
+      testApp.styles.card = 'i { color: blue }'
+      const template = document.getElementById('card')
+      const style = document.getElementById('card.css')
+      expect(template.content.textContent).toBe('B')
+      expect(style.textContent).toContain('blue')
+      delete testApp.templates.card
+      delete testApp.styles.card
+      expect(template.content.textContent).toBe('A')
+      expect(style.textContent).toContain('red')
+      expect(document.querySelectorAll('style')).toHaveLength(1)
+      testApp.templates.temporary = 'temporary'
+      delete testApp.templates.temporary
+      expect(document.getElementById('temporary')).toBeNull()
+    } finally {
+      testApp.destroy()
+    }
+  })
+
   it('falls back to the binding built-in after removing an app-only edit', async () => {
     document.body.innerHTML =
       '<span data-simply-field="title" data-simply-transform="escape_html"></span>'
     const testApp = app({ data: { title: '<first>' } })
     try {
-      expect(testApp.components.app.data.title).toBe('<first>')
+      expect(Object.hasOwn(testApp.components.app, 'data')).toBe(false)
       testApp.transformers.escape_html = (context, next) => {
         context.value = 'custom'
         next(context)
@@ -755,7 +952,6 @@ describe('app integration details', () => {
       container,
       components: {
         base: {
-          data: { fromComponent: true, overridden: false },
           actions: {
             componentAction() { return 'component' }
           }
@@ -768,7 +964,6 @@ describe('app integration details', () => {
       __proto__: { polluted: true }
     })
 
-    expect(testApp.data.fromComponent).toBe(true)
     expect(testApp.data.overridden).toBe(true)
     expect(testApp.actions.componentAction()).toBe('component')
     expect(testApp.actions.appAction()).toBe('app')
@@ -877,7 +1072,8 @@ describe('app integration details', () => {
 
     await testApp.actions.loadItem()
 
-    expect(testApp.api).toBe(api)
+    expect(testApp.api).not.toBe(api)
+    expect(testApp.api.get).toBe(api.get)
     expect(testApp.data.item).toEqual({ path: 'foo.json', title: 'Loaded' })
     expect(warn).not.toHaveBeenCalled()
     testApp.destroy()

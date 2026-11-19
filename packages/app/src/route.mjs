@@ -1,3 +1,4 @@
+import { onDefinitionChange } from './composition.mjs'
 import { closest } from './suggest.mjs'
 export function routes(options)
 {
@@ -14,9 +15,17 @@ export class SimplyRoute
         this.addMissingSlash = !!options.addMissingSlash
         this.matchExact = !!options.matchExact
         this.hijackLinks = !!options.hijackLinks
+        this.eventHandlers = undefined
         this.clear()
         if (options.routes) {
             this.load(options.routes)
+            let configured = new Set(this.routeInfo)
+            onDefinitionChange(options.routes, () => {
+                const extra = this.routeInfo.filter(route => !configured.has(route))
+                const compiled = parseRoutes(options.routes, [], this.matchExact)
+                configured = new Set(compiled)
+                this.routeInfo = [...compiled, ...extra]
+            })
         }
     }
 
@@ -172,6 +181,7 @@ export class SimplyRoute
 
     destroy()
     {
+        onDefinitionChange(this.options.routes, undefined)
         this.removeEvents()
     }
 

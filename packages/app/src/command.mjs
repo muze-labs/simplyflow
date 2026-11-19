@@ -1,3 +1,4 @@
+import { controllerDefinitions } from './composition.mjs'
 import { closest } from './suggest.mjs'
 import path from './path.mjs'
 
@@ -19,20 +20,18 @@ class SimplyCommands {
 		}
         this.app = options.app
 		this.$handlers = options.handlers || defaultHandlers
-        if (options.commands) {
-    		Object.assign(this, options.commands)
-        }
+        const api = controllerDefinitions(this, options.commands)
 
 		const commandHandler = (evt) => {
-			const command = getCommand(evt, this.$handlers, this.app)
+			const command = getCommand(evt, api.$handlers, api.app)
 			if (!command) {
 				return
 			}
-			if (!this[command.name]) {
-                warnUnknownCommand(this, command.name, command.source)
+			if (!api[command.name]) {
+                warnUnknownCommand(api, command.name, command.source)
                 return
 			}
-            const shouldContinue = this[command.name].call(options.app, command.source, command.value, evt)
+            const shouldContinue = api[command.name].call(options.app, command.source, command.value, evt)
             if (shouldContinue!==true) {
                 evt.preventDefault()
                 evt.stopPropagation()
@@ -45,7 +44,8 @@ class SimplyCommands {
         container.addEventListener('submit', commandHandler)
         container.addEventListener('change', commandHandler)
         container.addEventListener('input', commandHandler)
-        commandState.set(this, { container, commandHandler })
+        commandState.set(api, { container, commandHandler })
+        return api
 	}
 
     call(command, el, value, event) {
