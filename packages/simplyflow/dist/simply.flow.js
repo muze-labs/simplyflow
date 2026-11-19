@@ -2135,13 +2135,17 @@
         );
       }
       const clone2 = content.cloneNode(true);
+      const attribute = this.options.attribute;
       let root = clone2.firstElementChild;
       if (!root) {
         const params = new URLSearchParams({ "simply-template": template.id });
         root = template.ownerDocument.createComment(` ${params} `);
         clone2.replaceChildren(root);
+      } else if (template.id) {
+        root.setAttribute(attribute + "-template", template.id);
+      } else {
+        root.removeAttribute(attribute + "-template");
       }
-      const attribute = this.options.attribute;
       const attributes2 = [attribute + "-field", attribute + "-edit", attribute + "-list", attribute + "-map"];
       const bindings = clone2.querySelectorAll(`[${attribute}-field],[${attribute}-edit],[${attribute}-list],[${attribute}-map]`);
       for (let binding of bindings) {
