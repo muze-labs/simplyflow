@@ -91,8 +91,10 @@ describe('model API contract coverage', () => {
       m.addEffect(input => effect(() => transform(input)))
       m.state.data = [3]
       expect(m.view.current).toEqual([6])
-      m.destroy()
-      m.destroy()
+      // Apps commonly store the model on their reactive data object.
+      const stored = signal({ model: m }).model
+      stored.destroy()
+      stored.destroy()
       m.state.data = [4]
       expect(transform).toHaveBeenCalledTimes(2)
       expect(m.view.current).toEqual([6])

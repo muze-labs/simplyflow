@@ -1,5 +1,7 @@
 import { signal, isSignal, raw, throttledEffect, batch, effect, destroy } from '@muze-labs/simplyflow-state'
 
+const destroyedModels = new WeakSet()
+
 /**
  * This class implements a pluggable data model, where you can
  * add effects that are run only when either an option for that
@@ -7,7 +9,6 @@ import { signal, isSignal, raw, throttledEffect, batch, effect, destroy } from '
  * effects changes.
  */
 class SimplyFlowModel {
-	#destroyed = false
 
 	/**
 	 * Creates a new datamodel, with a state property that contains
@@ -40,7 +41,7 @@ class SimplyFlowModel {
 	 * list. And the last effect added is set as this.view
 	 */
 	addEffect(fn) {
-		if (this.#destroyed) {
+		if (destroyedModels.has(raw(this))) {
 			throw new Error('simplyflow/model: cannot add an effect to a destroyed model')
 		}
 		if (!fn || typeof fn !=='function') {
@@ -56,10 +57,10 @@ class SimplyFlowModel {
 	}
 
 	destroy() {
-		if (this.#destroyed) {
+		if (destroyedModels.has(raw(this))) {
 			return
 		}
-		this.#destroyed = true
+		destroyedModels.add(raw(this))
 		for (const output of this.effects.toReversed()) {
 			destroy(output)
 		}
