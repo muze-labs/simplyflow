@@ -10,9 +10,6 @@ function* componentDefinitions(components, names = Object.keys(components))
         if (!definition) {
             continue
         }
-        if (Object.hasOwn(definition, 'data')) {
-            throw new TypeError(`simplyflow/app: component "${name}" declares data. Pass data to simply.app() instead.`)
-        }
         if (definition.components) {
             yield* componentDefinitions(definition.components)
         }
@@ -112,6 +109,29 @@ function mergeDescriptor(previous, next, shape, seen = new WeakMap())
 function dataProperty(value)
 {
     return { value, enumerable: true, writable: true, configurable: true }
+}
+
+// structuredClone preserves references inside the data graph. Carry over the
+// mergeable markers too, since the registry identifies maps by object identity.
+function cloneComponentData(source)
+{
+    const copy = structuredClone(source)
+    function markDataMap(original, cloned) {
+        if (markedMaps.has(cloned)) {
+            return
+        }
+        markedMaps.add(cloned)
+        for (const key of Object.keys(cloned)) {
+            const child = Object.getOwnPropertyDescriptor(original, key)?.value
+            if (markedMaps.has(child)) {
+                markDataMap(child, cloned[key])
+            }
+        }
+    }
+    if (isRecord(source)) {
+        markDataMap(source, copy)
+    }
+    return copy
 }
 
 function mergedOption(definitions, key, hasComponents)
@@ -337,6 +357,7 @@ export function composeApp(definition)
     const components = { ...suppliedComponents }
     const roots = Object.keys(components)
     const definitions = []
+    let initialData
     for (const [name, definition] of componentDefinitions(components, roots)) {
         if (!Object.hasOwn(components, name)) {
             Object.defineProperty(components, name, {
@@ -344,6 +365,13 @@ export function composeApp(definition)
             })
         }
         definitions.push([name, definition])
+        if (Object.hasOwn(definition, 'data')) {
+            const defaults = definition.data
+            if (defaults != null) {
+                initialData = mergeDescriptor(initialData,
+                    dataProperty(cloneComponentData(defaults)), 'map')
+            }
+        }
     }
 
     components.app = appDefinition
@@ -371,5 +399,8 @@ export function composeApp(definition)
     const values = Object.create(null, descriptors)
     const options = editableRecord(values, key =>
         mergedOption(currentDefinitions(), key, suppliedComponents), 'app')
-    return { data, options, components }
+    if (data != null) {
+        initialData = mergeDescriptor(initialData, dataProperty(data), 'map')
+    }
+    return { data: initialData?.value, options, components }
 }

@@ -127,10 +127,18 @@ keep their usual lifecycle. Inspect a component through its original hierarchy.
 A nested name is also available directly on `app.components` when the name is free.
 
 The top-level definition is always available as `app.components.app`, including
-when the app has no supplied components. Pass reactive state through the top-level
-`data` option. It lives on `app.data` and is excluded from the component
-registry. A supplied component that declares its own `data` causes an error.
-Component methods can read and update the owning app’s data.
+when the app has no supplied components. Components can supply defaults in `data`. On each mount,
+SimplyFlow calls `structuredClone` on each component’s data before merging its
+fields in component order. Top-level `options.data` takes precedence. A later
+field replaces an earlier value, including an array or object, unless both
+values are marked with `simply.mergeable()`.
+
+Component defaults must be structured-cloneable. Use `ArrayBuffer` for binary
+defaults that need independent storage. Cloning a `SharedArrayBuffer` preserves
+its shared backing memory. The authored defaults remain available on the
+source component.
+SimplyFlow uses top-level data values and later assignments to `app.data`
+without cloning them. Deleting a field removes it from the running app.
 
 SimplyFlow reserves the exact component
 name `app` at every level. Rename any component with that name before calling

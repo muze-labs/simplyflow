@@ -1,4 +1,6 @@
 import { jest } from '@jest/globals'
+import { runInThisContext } from 'node:vm'
+import { raw } from '@muze-labs/simplyflow-state'
 import { app, mergeable } from '@muze-labs/simplyflow-app'
 
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
@@ -261,13 +263,74 @@ describe('app API', () => {
     expect(document.querySelector('template#card')).toBeNull()
   })
 
-  it.each([
-    { editor: { data: {} } },
-    { outer: { components: { editor: { data: undefined } } } }
-  ])('rejects component data before startup', components => {
-    const start = jest.fn()
-    expect(() => app({ components, start })).toThrow(/component "editor" declares data/)
-    expect(start).not.toHaveBeenCalled()
+  describe('component data defaults', () => {
+    // This version of jsdom lacks structuredClone. Use Node's native implementation.
+    beforeAll(() => { globalThis.structuredClone = runInThisContext('structuredClone') })
+    afterAll(() => { delete globalThis.structuredClone })
+
+    it('isolates defaults on each mount and keeps edits reactive', async () => {
+      const row = { title: 'Draft' }
+      const editor = { data: { rows: [row], selected: row, status: 'Draft' } }
+      document.body.innerHTML = '<main><span data-simply-field="status"></span></main><aside></aside>'
+      const mount = selector => app({
+        components: { editor }, container: document.querySelector(selector)
+      })
+      const first = mount('main')
+      const second = mount('aside')
+      try {
+        await wait()
+        const field = document.querySelector('span')
+        expect(field.textContent).toBe('Draft')
+        first.data.rows[0].title = 'Edited'
+        first.data.status = first.data.selected.title
+        await wait()
+        expect(field.textContent).toBe('Edited')
+        expect(second.data.selected.title).toBe('Draft')
+        expect(editor.data.selected.title).toBe('Draft')
+        delete first.data.rows
+        expect(first.data.rows).toBeUndefined()
+        expect(second.data.rows).toHaveLength(1)
+      } finally {
+        first.destroy()
+        second.destroy()
+      }
+    })
+
+    it('merges in definition order and keeps app-supplied values by reference', () => {
+      const child = { data: { child: true, parent: 'child', sibling: 'child' } }
+      const parent = { components: { child }, data: {
+        parent: 'parent', sibling: 'parent', settings: mergeable({ light: true }),
+        draft: { old: true }
+      } }
+      const sibling = { data: { sibling: 'sibling', title: 'default' } }
+      const draft = { save() {} }
+      const testApp = app({
+        components: { parent, sibling },
+        data: { title: 'app', settings: mergeable({ compact: true }), draft }
+      })
+      try {
+        expect(testApp.data.child).toBe(true)
+        expect(testApp.data.parent).toBe('parent')
+        expect(testApp.data.sibling).toBe('sibling')
+        expect(testApp.data.title).toBe('app')
+        expect(testApp.data.settings).toEqual({ light: true, compact: true })
+        expect(raw(testApp.data.draft)).toBe(draft)
+        const later = { submit() {} }
+        testApp.data.draft = later
+        expect(raw(testApp.data.draft)).toBe(later)
+      } finally {
+        testApp.destroy()
+      }
+    })
+
+    it('reports an uncloneable component default before startup', () => {
+      const start = jest.fn()
+      const editor = { data: { callback() {} } }
+      expect(() => app({ components: { editor }, start })).toThrow(
+        expect.objectContaining({ name: 'DataCloneError' })
+      )
+      expect(start).not.toHaveBeenCalled()
+    })
   })
 
   it('keeps reactive data exclusively on each app', () => {
