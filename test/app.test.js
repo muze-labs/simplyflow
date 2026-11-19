@@ -962,25 +962,31 @@ describe('app integration details', () => {
     document.body.innerHTML = `<ul data-simply-list="rows" data-simply-list-key="id">
       <template><li><button data-simply-command="select" data-simply-value=":value.id">
           <span data-simply-field="label"></span></button>
-        <input data-simply-edit="label"></li></template></ul>`
+        <input data-simply-edit="label">
+        <button data-simply-command="selectIndex" data-simply-value=":key"></button>
+      </li></template></ul>`
     const select = jest.fn()
+    const selectIndex = jest.fn()
     const mounted = app({
       data: { rows: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] },
-      commands: { select }
+      commands: { select, selectIndex }
     })
     try {
       await wait()
-      const buttons = document.querySelectorAll('button')
+      const buttons = document.querySelectorAll('[data-simply-command="select"]')
       const focused = buttons[1]
       focused.focus()
 
       mounted.data.rows = [{ id: 'b', label: 'New B' }, { id: 'a', label: 'New A' }]
       await wait()
-      expect([...document.querySelectorAll('button')]).toEqual([buttons[1], buttons[0]])
+      expect([...document.querySelectorAll('[data-simply-command="select"]')]).toEqual([buttons[1], buttons[0]])
       expect(document.activeElement).toBe(focused)
       expect(focused.textContent.trim()).toBe('New B')
       focused.click()
       expect(select).toHaveBeenCalledWith(focused, 'b', expect.any(MouseEvent))
+      const indexButton = focused.parentElement.querySelector('[data-simply-command="selectIndex"]')
+      indexButton.click()
+      expect(selectIndex).toHaveBeenCalledWith(indexButton, '0', expect.any(MouseEvent))
 
       const input = focused.parentElement.querySelector('input')
       expect(input.value).toBe('New B')

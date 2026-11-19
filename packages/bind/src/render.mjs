@@ -4,7 +4,7 @@
  */
 import { signal as domSignal, trackDomField, trackDomList } from './dom.mjs'
 import { throttledEffect, effect, untracked, batch } from '@muze-labs/simplyflow-state'
-import { getItemKey, setItemKey } from './item-key.mjs'
+import { commandKeyPaths, getItemKey, setItemKey } from './item-key.mjs'
 import { getValueByPath } from './index.mjs'
 import { DEP } from '@muze-labs/simplyflow-state/symbols'
 
@@ -177,7 +177,8 @@ export function arrayByTemplates(context)
 {
     const attribute      = this.options.attribute
     const attributes     = [attribute+'-field',attribute+'-edit',attribute+'-list',attribute+'-map',attribute+'-value-path']
-    const attrQuery      = '['+attributes.join('],[')+']'
+    const valueAttribute = attribute+'-value'
+    const attrQuery      = '['+[...attributes, valueAttribute].join('],[')+']'
     const keyAttribute   = attribute+'-key'
     const items          = Array.from(context.element.childNodes).filter(node => getItemKey(node, keyAttribute) != null)
     const usedItems      = new Set()
@@ -242,7 +243,7 @@ export function arrayByTemplates(context)
                 }
                 const changed = keys && (getItemKey(reusableItem, keyAttribute) !== String(index) ||
                     reusableItem[DEP.VALUE] !== value)
-                updateItemKey(reusableItem, index, context.path, keyAttribute, attributes, attrQuery)
+                updateItemKey(reusableItem, index, context.path, keyAttribute, attributes, attrQuery, valueAttribute)
                 reusableItem[DEP.VALUE] = value
                 if (keys && changed && reusableItem.nodeType === Node.ELEMENT_NODE) {
                     this.rebindListItem(reusableItem)
@@ -295,7 +296,7 @@ function findReusableItem(items, usedItems, value, template, start)
 }
 
 
-function updateItemKey(item, key, path, keyAttribute, attributes, attrQuery)
+function updateItemKey(item, key, path, keyAttribute, attributes, attrQuery, valueAttribute)
 {
     const oldKey = getItemKey(item, keyAttribute)
     const newKey = ''+key
@@ -317,6 +318,13 @@ function updateItemKey(item, key, path, keyAttribute, attributes, attrQuery)
     }
 
     for (let binding of bindings) {
+        const commandPath = commandKeyPaths.get(binding)
+        if (commandPath === oldPrefix) {
+            binding.setAttribute(valueAttribute, newKey)
+            commandKeyPaths.set(binding, newPrefix)
+        } else if (commandPath?.startsWith(oldPrefix+'.')) {
+            commandKeyPaths.set(binding, newPrefix+commandPath.slice(oldPrefix.length))
+        }
         for (let attr of attributes) {
             const bindPath = binding.getAttribute(attr)
             if (!bindPath || bindPath.substr(0,5)===':root') {
@@ -340,7 +348,8 @@ export function objectByTemplates(context)
 {
     const attribute      = this.options.attribute
     const attributes     = [attribute+'-field',attribute+'-edit',attribute+'-list',attribute+'-map',attribute+'-value-path']
-    const attrQuery      = '['+attributes.join('],[')+']'
+    const valueAttribute = attribute+'-value'
+    const attrQuery      = '['+[...attributes, valueAttribute].join('],[')+']'
     const keyAttribute   = attribute+'-key'
     const items          = Array.from(context.element.childNodes).filter(node => getItemKey(node, keyAttribute) != null)
     const usedItems      = new Set()
@@ -375,7 +384,7 @@ export function objectByTemplates(context)
                 if (reusableItem !== item) {
                     context.element.insertBefore(reusableItem, item)
                 }
-                updateItemKey(reusableItem, key, context.path, keyAttribute, attributes, attrQuery)
+                updateItemKey(reusableItem, key, context.path, keyAttribute, attributes, attrQuery, valueAttribute)
                 reusableItem[DEP.VALUE] = value
             }
             usedItems.add(reusableItem)

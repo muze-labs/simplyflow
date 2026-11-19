@@ -1,6 +1,6 @@
 import { throttledEffect, destroy } from '@muze-labs/simplyflow-state'
 import { escape_html, fixed_content, attributes } from './transformers.mjs'
-import { setItemKey } from './item-key.mjs'
+import { commandKeyPaths, setItemKey } from './item-key.mjs'
 import { releaseDomBinding } from './dom.mjs'
 import * as render from './render.mjs'
 import { DEP } from '@muze-labs/simplyflow-state/symbols'
@@ -337,6 +337,9 @@ class SimplyBind
             if (Object.hasOwn(resolved, 'path')) {
                 element.setAttribute(valuePathAttribute, resolved.path)
             } else {
+                if (value === ':key' && index != null) {
+                    commandKeyPaths.set(element, templateItemPath(path, index))
+                }
                 element.setAttribute(valueAttribute, resolved.value)
                 element.removeAttribute(valuePathAttribute)
             }

@@ -190,6 +190,9 @@ export function trackDomList(element)
             batch(() => { // apply all changes in the list as one change
                 let key=0
                 const path = this.getBindingPath(element)
+                if (!path) {
+                    return
+                }
                 const currentList = getValueByPath(this.options.root, path)
                 const source = currentList.slice() // make sure changes in currentList don't affect the original source
                 for (const item of element.childNodes) {
@@ -252,6 +255,9 @@ export function trackDomField(element, props, valueIsString, stringProperty = 'i
                 // when it still represents the current value. This keeps numbers
                 // and booleans stable after one-way rendering in a two-way bind.
                 const path = this.getBindingPath(element)
+                if (!path) {
+                    return
+                }
                 const currentValue = getValueByPath(this.options.root, path)
                 if (getUpdateValue) {
                     updateValue = getUpdateValue.call(this, s, currentValue)
