@@ -19,7 +19,7 @@ class SimplyCommands {
 			options.app.container = document.body
 		}
         this.app = options.app
-		this.$handlers = options.handlers || defaultHandlers
+		this.$handlers = options.handlers || [...defaultHandlers]
         const api = controllerDefinitions(this, options.commands)
 
 		const commandHandler = (evt) => {
