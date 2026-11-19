@@ -23,7 +23,7 @@ class SimplyCommands {
         const api = controllerDefinitions(this, options.commands)
 
 		const commandHandler = (evt) => {
-			const command = getCommand(evt, api.$handlers, api.app)
+			const command = getCommand(evt, this.$handlers, this.app)
 			if (!command) {
 				return
 			}
