@@ -19,7 +19,7 @@ class SimplyShortcuts
 		if (!options.app.container) {
 			options.app.container = document.body
 		}
-		Object.assign(this, options.shortcuts)
+		Object.defineProperties(this, Object.getOwnPropertyDescriptors(options.shortcuts || {}))
 
 		const keyHandler = (e) => {
 			let shortcutScopes = []

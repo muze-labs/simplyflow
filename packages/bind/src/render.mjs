@@ -4,6 +4,7 @@
  */
 import { signal as domSignal, trackDomField, trackDomList } from './dom.mjs'
 import { throttledEffect, effect, untracked, batch } from '@muze-labs/simplyflow-state'
+import { getItemKey, setItemKey } from './item-key.mjs'
 import { getValueByPath } from './index.mjs'
 import { DEP } from '@muze-labs/simplyflow-state/symbols'
 
@@ -161,7 +162,7 @@ export function arrayByTemplates(context)
     const attributes     = [attribute+'-field',attribute+'-edit',attribute+'-list',attribute+'-map',attribute+'-value-path']
     const attrQuery      = '['+attributes.join('],[')+']'
     const keyAttribute   = attribute+'-key'
-    const items          = Array.from(context.element.querySelectorAll(':scope > ['+keyAttribute+']'))
+    const items          = Array.from(context.element.childNodes).filter(node => getItemKey(node, keyAttribute) != null)
     const usedItems      = new Set()
     let cursor           = 0
 
@@ -184,7 +185,7 @@ export function arrayByTemplates(context)
             : findReusableItem(items, usedItems, value, newTemplate, cursor + 1)
 
         if (reusableItem) {
-            if (newTemplate != reusableItem[DEP.TEMPLATE]) {
+            if (newTemplate !== reusableItem[DEP.TEMPLATE] || (context.refreshTemplate && newTemplate === context.refreshTemplate)) {
                 context.element.replaceChild(this.applyTemplate(context), reusableItem)
             } else {
                 if (reusableItem !== item) {
@@ -238,14 +239,17 @@ function findReusableItem(items, usedItems, value, template, start)
 
 function updateItemKey(item, key, path, keyAttribute, attributes, attrQuery)
 {
-    const oldKey = item.getAttribute(keyAttribute)
+    const oldKey = getItemKey(item, keyAttribute)
     const newKey = ''+key
 
     if (oldKey === newKey) {
         return
     }
 
-    item.setAttribute(keyAttribute, newKey)
+    setItemKey(item, keyAttribute, newKey)
+    if (item.nodeType === Node.COMMENT_NODE) {
+        return
+    }
 
     const oldPrefix = path+'.'+oldKey
     const newPrefix = path+'.'+newKey
@@ -280,7 +284,7 @@ export function objectByTemplates(context)
     const attributes     = [attribute+'-field',attribute+'-edit',attribute+'-list',attribute+'-map',attribute+'-value-path']
     const attrQuery      = '['+attributes.join('],[')+']'
     const keyAttribute   = attribute+'-key'
-    const items          = Array.from(context.element.querySelectorAll(':scope > ['+keyAttribute+']'))
+    const items          = Array.from(context.element.childNodes).filter(node => getItemKey(node, keyAttribute) != null)
     const usedItems      = new Set()
     let cursor           = 0
 
@@ -299,7 +303,7 @@ export function objectByTemplates(context)
         const newTemplate = this.findTemplate(context.templates, value)
         let reusableItem
 
-        if (item.getAttribute(keyAttribute) === key) {
+        if (getItemKey(item, keyAttribute) === key) {
             reusableItem = item
         } else {
             reusableItem = findItemByKey(items, usedItems, key, keyAttribute)
@@ -307,7 +311,7 @@ export function objectByTemplates(context)
         }
 
         if (reusableItem) {
-            if (newTemplate != reusableItem[DEP.TEMPLATE]) {
+            if (newTemplate !== reusableItem[DEP.TEMPLATE] || (context.refreshTemplate && newTemplate === context.refreshTemplate)) {
                 context.element.replaceChild(this.applyTemplate(context), reusableItem)
             } else {
                 if (reusableItem !== item) {
@@ -337,7 +341,7 @@ function findItemByKey(items, usedItems, key, keyAttribute)
 {
     const stringKey = ''+key
     for (let item of items) {
-        if (!usedItems.has(item) && item.getAttribute(keyAttribute) === stringKey) {
+        if (!usedItems.has(item) && getItemKey(item, keyAttribute) === stringKey) {
             return item
         }
     }
@@ -349,12 +353,13 @@ function findItemByKey(items, usedItems, key, keyAttribute)
  */
 export function fieldByTemplates(context)
 {
-    const rendered = context.element.querySelector(':scope > :not(template)')
+    const rendered = Array.from(context.element.childNodes).find(node =>
+        node[DEP.TEMPLATE] || (node.nodeType === Node.ELEMENT_NODE && node.tagName !== 'TEMPLATE'))
     const template = this.findTemplate(context.templates, context.value)
     context.parent = getParentPath(context.element)
     if (rendered) {
         if (template) {
-            if (rendered?.[DEP.TEMPLATE] != template) {
+            if (rendered[DEP.TEMPLATE] !== template || template === context.refreshTemplate) {
                 const clone = this.applyTemplate(context)
                 context.element.replaceChild(clone, rendered)
             }

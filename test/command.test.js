@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals'
+import { app } from '@muze-labs/simplyflow-app'
 import { commands } from '@muze-labs/simplyflow-app/command'
 
 beforeEach(() => {
@@ -36,6 +37,35 @@ describe('command API', () => {
     expect(calls[0].source).toBe(container.querySelector('button'))
     expect(calls[0].value).toBe('42')
     expect(calls[0].event).toBe(evt)
+  })
+
+  it('keeps custom command handlers local to the app that registered them', () => {
+    const button = '<button data-simply-command="record" value="default">Record</button>'
+    document.body.innerHTML = `<main>${button}</main><aside>${button}</aside>`
+    const first = app({ container: document.querySelector('main') })
+    const second = app({ container: document.querySelector('aside') })
+    const values = []
+    first.commands.record = (_, value) => values.push(['first', value])
+    second.commands.record = (_, value) => values.push(['second', value])
+    try {
+      first.commands.prependHandler({
+        match: '[data-simply-command="record"]',
+        check: (_, event) => event.type === 'click',
+        get: () => 'custom'
+      })
+      first.container.querySelector('button').click()
+      second.container.querySelector('button').click()
+      first.destroy()
+      second.container.querySelector('button').click()
+      expect(values).toEqual([
+        ['first', 'custom'], ['second', 'default'], ['second', 'default']
+      ])
+    } finally {
+      if (!first.destroyed) {
+        first.destroy()
+      }
+      second.destroy()
+    }
   })
 
   it('lets commands opt into normal browser behavior by returning true', () => {
@@ -129,6 +159,7 @@ describe('command API', () => {
     document.body.innerHTML = `<div id="app"><span data-special-command="mark" data-value="custom"></span></div>`
     const container = document.getElementById('app')
     const calls = []
+    const handlers = []
     const commandApi = commands({
       app: { container },
       commands: {
@@ -136,7 +167,7 @@ describe('command API', () => {
           calls.push({ value, event })
         }
       },
-      handlers: []
+      handlers
     })
 
     commandApi.appendHandler({
@@ -149,6 +180,8 @@ describe('command API', () => {
       check: () => false,
       get: () => 'never'
     })
+
+    expect(handlers.map(handler => handler.match)).toEqual(['[data-never]', '[data-special-command]'])
 
     const special = container.querySelector('[data-special-command]')
     special.dataset.simplyCommand = special.dataset.specialCommand

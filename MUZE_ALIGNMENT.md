@@ -154,6 +154,14 @@ Beginner documentation now treats `data-simply-list` as the normal collection co
 
 **Status:** Open
 
+### Refresh mounted instances after a template definition changes
+
+Apps that support runtime editing can update named templates and styles in
+their containers. After a template edit, call
+`app.binding.rerender(element, template)` for each affected host or expanded
+`<simply-render>` root. The binding reports when the caller should retry after
+focus moves.
+
 ## Open questions
 
 - Is SimplyFlow part of Muze’s core stack, or a transitional dependency for current apps?

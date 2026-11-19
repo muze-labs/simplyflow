@@ -180,6 +180,7 @@ export function dragdrop({ app, container = app.container, drags = {}, drops = {
     listen('dragstart', event => {
         const source = event.target.closest?.(sourceSelector)
         if (!source || !container.contains(source) || !event.dataTransfer) return
+        if (!Object.hasOwn(drags, source.dataset.simplyDrag)) return
         cancel()
         try {
             const description = describe(source, event)
@@ -221,6 +222,7 @@ export function dragdrop({ app, container = app.container, drags = {}, drops = {
         const handle = event.target.closest?.(handleSelector)
         const source = handle?.closest(sourceSelector)
         if (!source || !container.contains(source)) return
+        if (!Object.hasOwn(drags, source.dataset.simplyDrag)) return
         handle.setPointerCapture(event.pointerId)
         touch = { handle, source, id: event.pointerId, x: event.clientX, y: event.clientY }
     })

@@ -18,21 +18,20 @@ class SimplyCommands {
 			options.app.container = document.body
 		}
         this.app = options.app
-		this.$handlers = options.handlers || defaultHandlers
-        if (options.commands) {
-    		Object.assign(this, options.commands)
-        }
+		this.$handlers = options.handlers || [...defaultHandlers]
+        Object.defineProperties(this, Object.getOwnPropertyDescriptors(options.commands || {}))
 
 		const commandHandler = (evt) => {
 			const command = getCommand(evt, this.$handlers, this.app)
 			if (!command) {
 				return
 			}
-			if (!this[command.name]) {
+			const handler = Object.hasOwn(this, command.name) ? this[command.name] : undefined
+			if (typeof handler !== 'function') {
                 warnUnknownCommand(this, command.name, command.source)
                 return
 			}
-            const shouldContinue = this[command.name].call(options.app, command.source, command.value, evt)
+            const shouldContinue = handler.call(options.app, command.source, command.value, evt)
             if (shouldContinue!==true) {
                 evt.preventDefault()
                 evt.stopPropagation()

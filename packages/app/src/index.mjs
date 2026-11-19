@@ -7,6 +7,8 @@ import { shortcuts, destroyShortcuts, accesskeys, destroyAccesskeys } from './sh
 import { dragdrop } from './dragdrop.mjs'
 import { behaviors } from './behavior.mjs'
 import { includes } from './include.mjs'
+import { composeApp } from './composition.mjs'
+export { mergeable } from './composition.mjs'
 import { closest } from './suggest.mjs'
 
 const APP_OPTIONS = [
@@ -29,163 +31,91 @@ const APP_OPTIONS = [
     'transformers'
 ]
 
+const runtimeProperties = new Set([
+    'commands', 'actions', 'shortcuts', 'routes', 'behaviors',
+    'binding', 'dragdrop', 'includes', 'accesskeys', 'destroy'
+])
+
 class SimplyApp
 {
-    constructor(options={})
+    constructor(definition={})
     {
-        if (options.components) {
-            const mergedOptions = {}
-            mergeComponents(mergedOptions, options.components)
-            mergeOptions(mergedOptions, options) // app options override component options
-            options = mergedOptions
-        }
-
-
-        this.container = options.container || document.body
+        const { data, options, components } = composeApp(definition)
+        const app = this
+        const { container } = options
+        this.data = signal(data || {})
+        this.components = components
         this.destroyed = false
-        this.data = signal(options.data || {})
-        this.start = options.start
-        this.onError = options.onError
-        this.components = options.components
-        this.baseURL = options.baseURL
-        this.transformers = options.transformers
 
-        installTemplates(this.container, options.templates)
-        installStyles(this.container, options.styles)
-
-        for (const key of Object.keys(options)) {
-            switch(key) {
-                case 'container':
-                case 'data':
-                case 'attribute':
-                case 'templates':
-                case 'styles':
-                case 'start':
-                case 'onError':
-                case 'components':
-                case 'baseURL':
-                case 'transformers':
-                    break
-                case 'commands':
-                    this.commands = commands({ app: this, container: this.container, commands: options.commands})
-                    break
-                case 'shortcuts':
-                    this.shortcuts = shortcuts({ app: this, shortcuts: options.shortcuts })
-                    break
-                case 'behaviors':
-                    this.behaviors = behaviors({ app: this, container: this.container, behaviors: options.behaviors })
-                    break
-                case 'routes':
-                    this.routes = routes({ app: this, routes: options.routes})
-                    break
-                case 'actions':
-                    this.actions = actions({app: this, actions: options.actions})
-                    break
-                case 'prototype':
-                case '__proto__':
-                    // ignore this to avoid prototype pollution
-                    break
-                default:
-                    // Unknown options become app properties. Warn only when the
-                    // name is close to a built-in option, which usually means a typo.
-                    warnLikelyOptionTypo(key)
-                    this[key] = options[key]
-                    break
+        for (const key of Reflect.ownKeys(options)) {
+            if (runtimeProperties.has(key) || key in this) {
+                continue
             }
+            if (typeof key === 'string' && !APP_OPTIONS.includes(key)) {
+                warnLikelyOptionTypo(key)
+            }
+            Object.defineProperty(this, key, Object.getOwnPropertyDescriptor(options, key))
         }
 
+        installMarkup(container, options.templates, 'template')
+        installMarkup(container, options.styles, 'style')
+        this.commands = commands({ app, commands: options.commands })
+        this.actions = actions({ app, actions: options.actions })
+        this.shortcuts = shortcuts({ app, shortcuts: options.shortcuts })
+        this.routes = routes({ app, routes: options.routes })
+        this.behaviors = behaviors({ app, container, behaviors: options.behaviors })
         this.binding = bind({
-            root: this.data,
-            container: this.container,
-            attribute: options.attribute || 'data-simply',
-            transformers: this.transformers
+            root: this.data, container, attribute: options.attribute || 'data-simply', app
         })
+        this.dragdrop = dragdrop({ app, drags: options.drags, drops: options.drops })
+        this.includes = includes({ container })
+        this.accesskeys = accesskeys({ app, container })
 
-        if (options.drags || options.drops) {
-            this.dragdrop = dragdrop({ app: this, drags: options.drags, drops: options.drops })
+        // Dispose the installed controllers even if app code replaces a property.
+        const { binding, commands: commandApi, shortcuts: shortcutApi, accesskeys: keys,
+            routes: router, behaviors: behaviorApi, dragdrop: dragApi, includes: includeApi } = this
+        this.destroy = () => {
+            if (this.destroyed) return
+            this.destroyed = true
+            dragApi.destroy()
+            binding.destroy()
+            destroyCommands(commandApi)
+            destroyShortcuts(shortcutApi)
+            destroyAccesskeys(keys)
+            router.destroy()
+            behaviorApi.destroy()
+            includeApi.destroy()
+            this.binding = undefined
+            this.routes = undefined
+            this.behaviors = undefined
+            this.includes = undefined
+            this.accesskeys = undefined
         }
-
-        this.includes = includes({ container: this.container })
-
-        this.accesskeys = accesskeys({ app: this, container: this.container })
     }
 
     get app()
     {
         return this
     }
-
-    destroy()
-    {
-        this.destroyed = true
-        if (this.dragdrop) {
-            this.dragdrop.destroy()
-        }
-        if (this.binding) {
-            this.binding.destroy()
-            this.binding = undefined
-        }
-        if (this.commands) {
-            destroyCommands(this.commands)
-        }
-        if (this.shortcuts) {
-            destroyShortcuts(this.shortcuts)
-        }
-        if (this.accesskeys) {
-            destroyAccesskeys(this.accesskeys)
-            this.accesskeys = undefined
-        }
-        if (this.routes) {
-            this.routes.destroy()
-            this.routes = undefined
-        }
-        if (this.behaviors) {
-            this.behaviors.destroy()
-            this.behaviors = undefined
-        }
-        if (this.includes) {
-            this.includes.destroy()
-            this.includes = undefined
-        }
-    }
 }
 
-function installTemplates(container, templates)
+function installMarkup(container, definitions, tag)
 {
-    if (!templates) {
-        return
-    }
-    for (const name of Object.keys(templates)) {
-        const element = document.createElement('div')
-        element.innerHTML = templates[name]
-        let template = container.querySelector('template#'+name)
-        if (!template) {
-            template = document.createElement('template')
-            template.id = name
-            template.content.append(...element.children)
-            container.appendChild(template)
+    for (const name of Object.keys(definitions)) {
+        const id = tag === 'style' ? name + '.css' : name
+        let node = Array.from(container.querySelectorAll(tag)).find(node => node.id === id)
+        if (!node) {
+            node = document.createElement(tag)
+            node.id = id
+            container.appendChild(node)
+        }
+        if (tag === 'template') {
+            node.innerHTML = definitions[name]
         } else {
-            template.content.replaceChildren(...element.children)
+            node.textContent = definitions[name]
         }
     }
 }
-
-function installStyles(container, styles)
-{
-    if (!styles) {
-        return
-    }
-    for (const name of Object.keys(styles)) {
-        let style = container.querySelector('style#'+name+'.css')
-        if (!style) {
-            style = document.createElement('style')
-            style.id = name+'.css'
-            container.appendChild(style)
-        }
-        style.innerHTML = styles[name]
-    }
-}
-
 
 function warnLikelyOptionTypo(key)
 {
@@ -199,19 +129,20 @@ function initRoutes(app) {
     if (app.destroyed) {
         return
     }
-    if (app.routes) {
+    const router = app.routes
+    if (typeof router?.handleEvents === 'function') {
         if (app.baseURL) {
-            app.routes.init({ baseURL: app.baseURL })
+            router.init({ baseURL: app.baseURL })
         }
-        app.routes.handleEvents()
+        router.handleEvents()
         globalThis.setTimeout(() => {
-            if (app.destroyed || !app.routes) {
+            if (app.destroyed || app.routes !== router) {
                 return
             }
-            if (app.routes.has(globalThis.location?.hash)) {
-                app.routes.match(globalThis.location.hash)
+            if (router.has(globalThis.location?.hash)) {
+                router.match(globalThis.location.hash)
             } else {
-                app.routes.match(globalThis.location?.pathname+globalThis.location?.hash)
+                router.match(globalThis.location?.pathname+globalThis.location?.hash)
             }
         })
     }
@@ -245,54 +176,4 @@ export function app(options={})
         handleAppError(app, error, app.start)
     }
     return app
-}
-
-
-function mergeOptions(options, otherOptions)
-{
-    for (const key of Object.keys(otherOptions)) {
-        switch(typeof otherOptions[key]) {
-            case 'object':
-                if (!otherOptions[key]) {
-                    continue // null
-                }
-                if (!options[key]) {
-                    options[key] = otherOptions[key]
-                } else {
-                    mergeOptions(options[key], otherOptions[key])
-                }
-                break
-            default:
-                options[key] = otherOptions[key]
-        }
-    }
-}
-
-function mergeComponents(options, components) {
-    for (const name of Object.keys(components)) {
-        const component = components[name]
-        if (component.components) {
-            mergeComponents(options, component.components)
-        }
-        if (!options.components) {
-            options.components = {}
-        }
-        options.components[name] = component
-        for (const key of Object.keys(component)) {
-            switch(key) {
-                case 'start':
-                case 'onError':
-                    // App lifecycle functions are app-level behavior, not merged component state.
-                case 'components':
-                    // already handled
-                    break
-                default:
-                    if (!options[key]) {
-                        options[key] = Object.create(null)
-                    }
-                    mergeOptions(options[key], component[key])
-                    break
-            }
-        }
-    }
 }

@@ -29,6 +29,12 @@ const counter = app({
 </div>
 ```
 
+Always read and write application state through `app.data` (`counter.data` in
+this example, or `this.data` inside its commands and actions). If you pass an
+existing signal as `data`, the app can reuse it. When SimplyFlow merges
+component defaults into that data, it creates a new root signal. Updating a
+top-level field on the original signal then leaves the app’s field unchanged.
+
 For editable values, use `data-simply-edit`:
 
 ```html
@@ -234,6 +240,9 @@ Or check the [examples](examples/) for more information.
 ## Development
 
 This repository is a private npm workspace root. The published main package lives in `packages/simplyflow`; the smaller layer packages live in `packages/state`, `packages/bind`, `packages/model`, and `packages/app`.
+
+The development and test tools require Node.js 22.22.2+ on the 22.x line,
+24.15.0+ on the 24.x line, or 26.0.0+.
 
 ```shell
 npm install

@@ -1,5 +1,6 @@
 import { TextDecoder, TextEncoder } from 'node:util'
 import { jest } from '@jest/globals'
+import { app } from '@muze-labs/simplyflow-app'
 import { dragdrop } from '../packages/app/src/dragdrop.mjs'
 
 const format = 'application/x-test-card'
@@ -71,6 +72,25 @@ function source(id = 'Card-É') {
 }
 
 describe('dragdrop API', () => {
+  it('ignores unconfigured drag sources and dispatches handlers registered later', () => {
+    document.body.innerHTML = '<article draggable="true" data-simply-drag="card"></article>' +
+      '<section data-simply-drop="column"></section>'
+    const card = document.querySelector('article')
+    const column = document.querySelector('section')
+    const testApp = app()
+    controllers.push(testApp)
+    const dt = transfer()
+    expect(dispatch(card, 'dragstart', dt).defaultPrevented).toBe(false)
+
+    const drop = jest.fn()
+    testApp.drags.card = () => ({ data: { [format]: 'late' } })
+    testApp.drops.column = { drop }
+    dispatch(card, 'dragstart', dt)
+    dispatch(column, 'drop', dt)
+    expect(drop).toHaveBeenCalledTimes(1)
+    expect(drop.mock.calls[0][2].data[format]).toBe('late')
+  })
+
   it('exposes metadata during hover and captures the payload before an async drop handler resumes', async () => {
     const card = source()
     const calls = []

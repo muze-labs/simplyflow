@@ -5,6 +5,143 @@ import { bind, trace } from '@muze-labs/simplyflow-bind'
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 
 describe('bind can', () => {
+  it.each([
+    ['field', 'draft'],
+    ['list', ['draft', 'other']],
+    ['map', { first: 'draft', second: 'other' }]
+  ])('refreshes an edited template in a mounted %s', async (kind, items) => {
+    document.body.innerHTML = `<template id="card"><b>Old</b></template>
+      <main data-flow-${kind}="items">
+        <template rel="card" data-flow-match="draft"></template>
+        <template><i>Keep</i></template>
+      </main>`
+    const data = signal({ items })
+    const binding = bind({ root: data })
+    const host = document.querySelector('main')
+    const template = document.getElementById('card')
+    const other = host.querySelector('i')
+    try {
+      template.innerHTML = '<strong data-flow-field=":root.title"></strong>'
+      data.title = 'Edited'
+      expect(binding.rerender(host, template)).toBe(true)
+      await wait()
+      expect(host.querySelector('b')).toBeNull()
+      expect(host.querySelector('strong').textContent).toBe('Edited')
+      expect(host.querySelector('i')).toBe(other)
+      data.title = 'Still bound'
+      await wait()
+      expect(host.querySelector('strong').textContent).toBe('Still bound')
+    } finally {
+      binding.destroy()
+    }
+  })
+
+  it('preserves items that select an empty template when a two-way list mounts', async () => {
+    document.body.innerHTML = `
+      <ul data-flow-list="items">
+        <template data-flow-match="hide"></template>
+        <template><li data-flow-field=":value"></li></template>
+      </ul>
+    `
+    const data = signal({ items: ['A', 'hide', 'B'] })
+    const binding = bind({ root: data, twoway: true })
+    try {
+      expect(Array.from(data.items)).toEqual(['A', 'hide', 'B'])
+      await wait()
+      const rows = document.querySelectorAll('ul > li')
+      expect(Array.from(rows, row => row.textContent)).toEqual(['A', 'B'])
+      expect(Array.from(data.items)).toEqual(['A', 'hide', 'B'])
+    } finally {
+      binding.destroy()
+    }
+  })
+
+  it('restores cleared rows in place after list data changes', async () => {
+    document.body.innerHTML = `<template id="card"><li data-flow-field=":value"></li></template>
+      <ul data-flow-list="items"><template data-flow-match="keep"><i>Keep</i></template>
+      <template rel="card"></template></ul>`
+    const data = signal({ items: ['one', 'keep', 'two'] })
+    const binding = bind({ root: data, twoway: true })
+    const host = document.querySelector('ul')
+    const template = document.getElementById('card')
+    const original = template.innerHTML
+    const kept = host.querySelector('i')
+    try {
+      template.innerHTML = ''
+      expect(binding.rerender(host, template)).toBe(true)
+      const comments = () => Array.from(host.childNodes).filter(node => node.nodeType === Node.COMMENT_NODE)
+      expect(comments().map(node => node.data)).toEqual([' simply-template=card ', ' simply-template=card '])
+      await wait()
+      expect(Array.from(data.items)).toEqual(['one', 'keep', 'two'])
+      data.items.splice(0, 1)
+      data.items.push('three')
+      await wait()
+      template.innerHTML = original
+      expect(binding.rerender(host, template)).toBe(true)
+      await wait()
+      expect(comments()).toHaveLength(0)
+      expect(host.querySelector('i')).toBe(kept)
+      expect(Array.from(host.querySelectorAll('li'), row => row.textContent)).toEqual(['two', 'three'])
+      expect(Array.from(data.items)).toEqual(['keep', 'two', 'three'])
+    } finally {
+      binding.destroy()
+    }
+  })
+
+  it.each([['field', 'first'], ['map', { first: 1, second: 2 }]])(
+    'restores an initially empty named template in a %s', (kind, items) => {
+      document.body.innerHTML = `<template id="cart+é&amp;row"></template>
+        <main data-flow-${kind}="items"><template rel="cart+é&amp;row"></template></main>`
+      const binding = bind({ root: signal({ items }) })
+      const host = document.querySelector('main')
+      const template = document.getElementById('cart+é&row')
+      try {
+        const markers = Array.from(host.childNodes).filter(node => node.nodeType === Node.COMMENT_NODE)
+        expect(markers).toHaveLength(kind === 'field' ? 1 : 2)
+        for (const marker of markers) {
+          expect(marker.data.trim()).toBe('simply-template=cart%2B%C3%A9%26row')
+        }
+        template.innerHTML = '<b>Restored</b>'
+        expect(binding.rerender(host, template)).toBe(true)
+        expect(host.querySelectorAll('b')).toHaveLength(markers.length)
+        expect(markers.every(node => !node.isConnected)).toBe(true)
+      } finally {
+        binding.destroy()
+      }
+    }
+  )
+
+  it('retains a focused edit and commits pending input when the editor retries', async () => {
+    document.body.innerHTML = `<template id="card"><input data-flow-edit=":value"></template>
+      <main data-flow-list="names"><template rel="card"></template></main>`
+    const data = signal({ names: ['original'] })
+    const host = document.querySelector('main')
+    const template = document.getElementById('card')
+    // Keep input within the throttle window regardless of how long focus takes.
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now())
+    let binding
+    try {
+      binding = bind({ root: data })
+      await wait(0)
+      const input = host.querySelector('input')
+      template.innerHTML = '<b data-flow-field=":value"></b>'
+      input.focus()
+      input.value = 'edited'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      expect(binding.rerender(host, template)).toBe(false)
+      expect(document.activeElement).toBe(input)
+      input.blur()
+      expect(binding.rerender(host, template)).toBe(true)
+      expect(data.names[0]).toBe('edited')
+      expect(binding.bindings.has(input)).toBe(false)
+      await wait()
+      expect(host.querySelector('b').textContent).toBe('edited')
+    } finally {
+      clock.mockRestore()
+      binding?.destroy()
+    }
+  })
+
   it('render simple list', (done) => {
     const source = `
   <ul data-flow-list="menu">
@@ -247,11 +384,14 @@ describe('bind can', () => {
         innerHTML: 'foobar'
       }
     })
+    let receiver, argumentCount
     const databind = bind({
       container: document.body,
       root: data,
       transformers: {
         setDataFoo: function(context, next) {
+          receiver = this
+          argumentCount = arguments.length
           context.element.dataset.foo = context.value.innerHTML
           next(context)
         }
@@ -262,6 +402,9 @@ describe('bind can', () => {
     setTimeout(() => {
       try {
         expect(document.body.innerHTML).toBe(rendered)
+        expect(receiver).toBe(databind)
+        expect(receiver.app).toBeUndefined()
+        expect(argumentCount).toBe(2)
         done()
       } catch(error) {
         done(error)
@@ -578,11 +721,12 @@ describe('bind API contract coverage', () => {
     }
   })
 
-  it('throws when a rel template cannot be found', () => {
-    document.body.innerHTML = '<div data-flow-field="value"><template rel="missing-template"></template></div>'
-    const data = signal({ value: true })
-
-    expect(() => bind({ container: document.body, root: data })).toThrow('Could not find template with id missing-template')
+  it('throws when a rel template exists only outside the binding container', () => {
+    document.body.innerHTML = `<template id="card"><b>Outside</b></template>
+      <main><div data-flow-field="value"><template rel="card"></template></div></main>`
+    const container = document.querySelector('main')
+    expect(() => bind({ container, root: signal({ value: true }) }))
+      .toThrow('Could not find template with id card')
   })
 
   it('does not render an item when no template matches that value', async () => {
@@ -600,25 +744,15 @@ describe('bind API contract coverage', () => {
     }
   })
 
-  it('allows a template with only text content', async () => {
-    document.body.innerHTML = '<div data-flow-field="mode"><template data-flow-match="text">plain text</template></div>'
-    const data = signal({ mode: 'text' })
-    const databind = bind({ container: document.body, root: data })
+  it.each(['plain text', '<b>one</b>extra text', '<b>one</b><i>two</i>'])(
+    'rejects a bound template with invalid root content (%s)', markup => {
+      document.body.innerHTML = `<div data-flow-field="mode"><template>${markup}</template></div>`
+      const data = signal({ mode: 'anything' })
 
-    try {
-      await wait()
-      expect(document.querySelector('div').textContent).toContain('plain text')
-    } finally {
-      databind.destroy()
+      expect(() => bind({ container: document.body, root: data }))
+        .toThrow('template must be empty or contain a single root element')
     }
-  })
-
-  it('rejects templates with more than one root element', () => {
-    document.body.innerHTML = '<div data-flow-field="mode"><template><b>one</b><i>two</i></template></div>'
-    const data = signal({ mode: 'anything' })
-
-    expect(() => bind({ container: document.body, root: data })).toThrow('template must contain a single root node')
-  })
+  )
 
   it('switches and removes field template output when the matching template changes', async () => {
     document.body.innerHTML = `<div data-flow-field="mode">

@@ -1,5 +1,7 @@
 import { jest } from '@jest/globals'
-import { app } from '@muze-labs/simplyflow-app'
+import { runInThisContext } from 'node:vm'
+import { raw } from '@muze-labs/simplyflow-state'
+import { app, mergeable } from '@muze-labs/simplyflow-app'
 
 const wait = (ms = 80) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -123,6 +125,432 @@ describe('app API', () => {
     expect(container.querySelector('a').getAttribute('href')).toBe('#item/42')
 
     testApp.destroy()
+  })
+
+  it('uses current named transformers for mounted app bindings', async () => {
+    const fields = `<span data-simply-field="title" data-simply-transform="escape_html label"></span>
+      <input data-simply-edit="value" data-simply-transform="label">`
+    document.body.innerHTML = `<div id="first">${fields}</div><div id="second">${fields}</div>`
+    const first = document.querySelector('#first')
+    const second = document.querySelector('#second')
+    const makeTransformer = (name) => ({
+      render: jest.fn(function(context, next) {
+        if (!context.edit) {
+          context.value = `${this.app.api.label} ${name}: ${context.value}`
+        }
+        return next(context)
+      }),
+      extract: jest.fn(function(context, next) {
+        if (context.value !== context.currentValue) {
+          context.value = `${this.app.api.label} ${name}: ${context.value}`
+        }
+        return next(context)
+      })
+    })
+    const component = { transformers: { label: makeTransformer('component') } }
+    const original = makeTransformer('app')
+    const replacement = makeTransformer('override')
+    const testApp = app({
+      container: first,
+      data: { title: 'original', value: 'draft' },
+      api: { label: 'first' },
+      components: { component },
+      transformers: { label: original }
+    })
+    const otherApp = app({
+      container: second,
+      data: { title: 'original', value: 'draft' },
+      api: { label: 'second' },
+      components: { component }
+    })
+
+    try {
+      const title = first.querySelector('span')
+      const input = first.querySelector('input')
+      await wait()
+      expect(title.textContent).toBe('first app: original')
+      expect(second.querySelector('span').textContent).toBe('second component: original')
+
+      testApp.transformers.label = replacement
+      testApp.data.title = '<replacement>'
+      input.value = 'edited'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await wait()
+      expect(title.textContent).toBe('first override: <replacement>')
+      expect(testApp.data.value).toBe('first override: edited')
+      expect(testApp.binding.app).toBe(testApp)
+      expect(replacement.render.mock.contexts[0]).toBe(testApp.binding)
+      expect(replacement.render.mock.calls[0]).toHaveLength(2)
+      expect(replacement.extract.mock.contexts[0]).toBe(testApp.binding)
+      expect(replacement.extract.mock.calls[0]).toHaveLength(2)
+      expect(second.querySelector('span').textContent).toBe('second component: original')
+      expect(otherApp.data.value).toBe('draft')
+
+      testApp.transformers.label = function(context, next) {
+        context.value = `${this.app.api.label} direct: ${context.value}`
+        return next(context)
+      }
+      testApp.data.title = 'edited definition'
+      await wait()
+      expect(title.textContent).toBe('first direct: edited definition')
+    } finally {
+      testApp.destroy()
+      otherApp.destroy()
+    }
+  })
+
+  it('combines component and app transformer hooks in an app-owned map', () => {
+    const base = { render() {}, extract() {} }
+    const editor = { transformers: { label: base } }
+    const appSource = { render() {} }
+    const testApp = app({
+      components: { editor },
+      transformers: { label: appSource }
+    })
+
+    try {
+      expect(testApp.components.editor).toBe(editor)
+      expect(testApp.components.app.transformers.label).toBe(appSource)
+      expect(testApp.transformers.label.render).toBe(appSource.render)
+      expect(testApp.transformers.label.extract).toBe(base.extract)
+
+      const localRender = () => {}
+      testApp.transformers.label.render = localRender
+      expect(appSource.render).not.toBe(localRender)
+      expect(base.render).not.toBe(localRender)
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it.each([
+    ['top-level', { app: {} }],
+    ['nested', { editor: { components: { app: {} } } }]
+  ])('rejects a %s component named app before startup', (_, components) => {
+    const start = jest.fn()
+    expect(() => app({ components, start, templates: { card: '<p>Card</p>' } }))
+      .toThrow(/component name "app" is reserved/)
+    expect(start).not.toHaveBeenCalled()
+    expect(document.querySelector('template#card')).toBeNull()
+  })
+
+  describe('component data defaults', () => {
+    // This version of jsdom lacks structuredClone. Use Node's native implementation.
+    beforeAll(() => { globalThis.structuredClone = runInThisContext('structuredClone') })
+    afterAll(() => { delete globalThis.structuredClone })
+
+    it('isolates defaults on each mount and keeps edits reactive', async () => {
+      const row = { title: 'Draft' }
+      const editor = { data: { rows: [row], selected: row, status: 'Draft' } }
+      document.body.innerHTML = '<main><span data-simply-field="status"></span></main><aside></aside>'
+      const mount = selector => app({
+        components: { editor }, container: document.querySelector(selector)
+      })
+      const first = mount('main')
+      const second = mount('aside')
+      try {
+        await wait()
+        const field = document.querySelector('span')
+        expect(field.textContent).toBe('Draft')
+        first.data.rows[0].title = 'Edited'
+        first.data.status = first.data.selected.title
+        await wait()
+        expect(field.textContent).toBe('Edited')
+        expect(second.data.selected.title).toBe('Draft')
+        expect(editor.data.selected.title).toBe('Draft')
+        delete first.data.rows
+        expect(first.data.rows).toBeUndefined()
+        expect(second.data.rows).toHaveLength(1)
+      } finally {
+        first.destroy()
+        second.destroy()
+      }
+    })
+
+    it('merges in definition order and keeps app-supplied values by reference', () => {
+      const child = { data: { child: true, parent: 'child', sibling: 'child' } }
+      const parent = { components: { child }, data: {
+        parent: 'parent', sibling: 'parent', settings: mergeable({ light: true }),
+        draft: { old: true }
+      } }
+      const sibling = { data: { sibling: 'sibling', title: 'default' } }
+      const draft = { save() {} }
+      const testApp = app({
+        components: { parent, sibling },
+        data: { title: 'app', settings: mergeable({ compact: true }), draft }
+      })
+      try {
+        expect(testApp.data.child).toBe(true)
+        expect(testApp.data.parent).toBe('parent')
+        expect(testApp.data.sibling).toBe('sibling')
+        expect(testApp.data.title).toBe('app')
+        expect(testApp.data.settings).toEqual({ light: true, compact: true })
+        expect(raw(testApp.data.draft)).toBe(draft)
+        const later = { submit() {} }
+        testApp.data.draft = later
+        expect(raw(testApp.data.draft)).toBe(later)
+      } finally {
+        testApp.destroy()
+      }
+    })
+
+    it('reports an uncloneable component default before startup', () => {
+      const start = jest.fn()
+      const editor = { data: { callback() {} } }
+      expect(() => app({ components: { editor }, start })).toThrow(
+        expect.objectContaining({ name: 'DataCloneError' })
+      )
+      expect(start).not.toHaveBeenCalled()
+    })
+  })
+
+  it('keeps reactive data exclusively on each app', () => {
+    const editor = { actions: { discard() { delete this.data.draft } } }
+    const first = app({ data: { draft: 'first' }, components: { editor } })
+    const second = app({ data: { draft: 'second' }, components: { editor } })
+    try {
+      first.actions.discard()
+      expect(Object.hasOwn(first.data, 'draft')).toBe(false)
+      expect(second.data.draft).toBe('second')
+      expect(Object.hasOwn(first.components.app, 'data')).toBe(false)
+      expect(Object.hasOwn(editor, 'data')).toBe(false)
+    } finally {
+      first.destroy()
+      second.destroy()
+    }
+  })
+
+  it('reconstructs command precedence from the mounted app’s ordered roots', () => {
+    const B = { commands: { save() { return 'B' } } }
+    const A = { components: { B }, commands: { save() { return 'A' } } }
+    for (const [roots, winner] of [[{ A }, A], [{ A, B }, B], [{ B, A }, A]]) {
+      const order = Object.keys(roots)
+      const mounted = app({ components: roots })
+      try {
+        expect(mounted.commands.save).toBe(winner.commands.save)
+        expect(mounted.components.A).toBe(A)
+        expect(mounted.components.B).toBe(B)
+        mounted.commands.save = () => 'personal'
+        delete roots.A
+
+        const authored = mounted.components.app
+        expect(Object.keys(authored.components)).toEqual(order)
+        const rebuilt = app(authored)
+        try {
+          expect(rebuilt.commands.save).toBe(winner.commands.save)
+        } finally {
+          rebuilt.destroy()
+        }
+      } finally {
+        mounted.destroy()
+      }
+    }
+  })
+
+  it('retains same-named components, top-level lifecycle and service identity', () => {
+    const nested = { transformers: { label() {} } }
+    const shared = mergeable({ details: mergeable({ base: true }) })
+    const parent = {
+      components: { editor: nested },
+      api: shared,
+      start: jest.fn(),
+      onError: jest.fn()
+    }
+    const editor = { transformers: { label() {} } }
+    const service = new Map()
+    const start = jest.fn()
+    const onError = jest.fn()
+    const testApp = app({
+      components: { parent, editor },
+      api: mergeable({ details: mergeable({ local: true }) }),
+      service,
+      start,
+      onError
+    })
+
+    try {
+      expect(testApp.components.editor).toBe(editor)
+      expect(testApp.components.parent.components.editor).toBe(nested)
+      expect(testApp.components.app.start).toBe(start)
+      expect(testApp.transformers.label).toBe(editor.transformers.label)
+      expect(testApp.api.details).toEqual({ base: true, local: true })
+      expect(shared.details).toEqual({ base: true })
+      expect(testApp.service).toBe(service)
+      expect(testApp.onError).toBe(onError)
+      expect(start).toHaveBeenCalledTimes(1)
+      expect(start.mock.contexts[0]).toBe(testApp)
+      expect(parent.start).not.toHaveBeenCalled()
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('dispatches commands and actions added after an empty app has mounted', () => {
+    document.body.innerHTML = '<main><button data-simply-command="save">Save</button></main><aside></aside>'
+    const first = app({ container: document.querySelector('main') })
+    const second = app({ container: document.querySelector('aside') })
+    const button = document.querySelector('button')
+    const save = jest.fn(function() { this.data.saved = true })
+    try {
+      first.actions.save = save
+      first.commands.save = function() { this.actions.save() }
+      button.click()
+      expect(save).toHaveBeenCalledTimes(1)
+      expect(save.mock.contexts[0]).toBe(first)
+      expect(first.data.saved).toBe(true)
+      expect(Object.hasOwn(second.actions, 'save')).toBe(false)
+      expect(Object.hasOwn(second.commands, 'save')).toBe(false)
+      expect(Object.hasOwn(first.components.app, 'commands')).toBe(false)
+
+    } finally {
+      first.destroy()
+      second.destroy()
+    }
+    button.click()
+    expect(save).toHaveBeenCalledTimes(1)
+  })
+
+  it('dispatches an authored command named call through the button and public controller', () => {
+    document.body.innerHTML = '<button data-simply-command="call">Call</button>'
+    const original = jest.fn()
+    const replacement = jest.fn()
+    const editor = { commands: { call: original } }
+    const testApp = app({ components: { editor } })
+    try {
+      const button = document.querySelector('button')
+      button.click()
+      expect(original).toHaveBeenCalledTimes(1)
+      expect(original.mock.contexts[0]).toBe(testApp)
+      expect(original.mock.calls[0][0]).toBe(button)
+      expect(testApp.commands.call).toBe(original)
+      testApp.commands.call = replacement
+      button.click()
+      expect(replacement).toHaveBeenCalledTimes(1)
+      expect(editor.commands.call).toBe(original)
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('keeps unmarked services intact, including accessors, hidden state and symbols', () => {
+    const secret = Symbol('secret')
+    const reads = jest.fn()
+    const api = {
+      get label() { reads(); return this[secret] },
+      set label(value) { this[secret] = value }
+    }
+    Object.defineProperty(api, 'hidden', { value: 42 })
+    api[secret] = 'original'
+    const editor = { api: { earlier: true }, tools: mergeable({ service: { earlier: true } }) }
+    const testApp = app({ components: { editor }, api, tools: mergeable({ service: api }) })
+    try {
+      expect(reads).not.toHaveBeenCalled()
+      expect(testApp.api).toBe(api)
+      expect(testApp.tools.service).toBe(api)
+      testApp.tools.service.label = 'updated'
+      expect(testApp.api.label).toBe('updated')
+      expect(testApp.api.hidden).toBe(42)
+      expect(testApp.api[secret]).toBe('updated')
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('replaces a marked contribution with an unmarked service without reading its members', () => {
+    const get = jest.fn(() => 'live')
+    const service = Object.freeze(Object.defineProperty({}, 'label', { get }))
+    const tools = mergeable({ earlier: true })
+    const testApp = app({ components: { editor: { api: tools } }, api: service })
+    try {
+      expect(testApp.api).toBe(service)
+      expect(get).not.toHaveBeenCalled()
+      expect(() => mergeable(service)).toThrow(/non-configurable property "label"/)
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('composes top-level accessors without evaluating them during startup or assignment', () => {
+    const get = jest.fn(function() { return this.data.title })
+    const set = jest.fn(function(value) { this.data.title = value })
+    const source = { data: { title: 'initial' } }
+    Object.defineProperty(source, 'title', { get, set, configurable: true })
+    const testApp = app(source)
+    try {
+      expect(get).not.toHaveBeenCalled()
+      testApp.title = 'updated'
+      expect(get).not.toHaveBeenCalled()
+      expect(set.mock.contexts[0]).toBe(testApp)
+      expect(testApp.title).toBe('updated')
+      expect(get.mock.contexts[0]).toBe(testApp)
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('preserves descriptors when composing marked maps', () => {
+    const hidden = Symbol('hidden')
+    const get = jest.fn(function() { return this.prefix + '!' })
+    const set = jest.fn(function(value) { this.prefix = value })
+    const base = mergeable({ prefix: 'base' })
+    Object.defineProperty(base, 'label', { get, set, configurable: true })
+    Object.defineProperty(base, hidden, { value: 42, configurable: true })
+    const testApp = app({ components: { editor: { api: base } }, api: mergeable({ prefix: 'top' }) })
+    try {
+      const held = testApp.api
+      expect(get).not.toHaveBeenCalled()
+      expect(Object.getOwnPropertyDescriptor(held, 'label')).toEqual(
+        Object.getOwnPropertyDescriptor(base, 'label'))
+      expect(held.label).toBe('top!')
+      held.label = 'edited'
+      expect(set.mock.contexts[0]).toBe(held)
+      expect(base.prefix).toBe('base')
+      expect(held[hidden]).toBe(42)
+      expect(Reflect.set(held, hidden, 0)).toBe(false)
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('preserves unmarked leaves and self-references inside an opted-in map', () => {
+    const names = ['original']
+    const api = mergeable({ label: () => 'source', names })
+    api.self = api
+    const first = app({ api })
+    const second = app({ api })
+    try {
+      first.api.label = () => 'local'
+      expect(first.api.self).toBe(first.api)
+      expect(first.api.names).toBe(names)
+      expect(second.api.label()).toBe('source')
+      expect(api.label()).toBe('source')
+    } finally {
+      first.destroy()
+      second.destroy()
+    }
+  })
+
+  it('falls back to the binding built-in after removing an app-only edit', async () => {
+    document.body.innerHTML =
+      '<span data-simply-field="title" data-simply-transform="escape_html"></span>'
+    const testApp = app({ data: { title: '<first>' } })
+    try {
+      expect(Object.hasOwn(testApp.components.app, 'data')).toBe(false)
+      testApp.transformers.escape_html = (context, next) => {
+        context.value = 'custom'
+        next(context)
+      }
+      testApp.data.title = '<second>'
+      await wait()
+      expect(document.querySelector('span').textContent).toBe('custom')
+
+      delete testApp.transformers.escape_html
+      testApp.data.title = '<third>'
+      await wait()
+      expect(document.querySelector('span').textContent).toBe('<third>')
+    } finally {
+      testApp.destroy()
+    }
   })
 
   it('uses transformer extract hooks for editable fields', async () => {
@@ -530,6 +958,34 @@ describe('app API', () => {
 
 
 describe('app integration details', () => {
+  it('renders and refreshes each app’s local card template', () => {
+    const list = '<ul data-simply-list="items"><template rel="card"></template></ul>'
+    document.body.innerHTML = `<main>${list}</main><aside>${list}</aside>`
+    const mount = (selector, label) => app({
+      container: document.querySelector(selector),
+      templates: { card: `<li>${label}</li>` },
+      data: { items: ['item'] }
+    })
+    const first = mount('main', 'First')
+    const second = mount('aside', 'Second')
+    try {
+      const firstRow = first.container.querySelector('ul li')
+      const secondList = second.container.querySelector('ul')
+      expect(firstRow.textContent).toBe('First')
+      expect(secondList.querySelector('li').textContent).toBe('Second')
+
+      const card = second.container.querySelector('template#card')
+      card.innerHTML = '<li>Edited</li>'
+      expect(second.binding.rerender(secondList, card)).toBe(true)
+      expect(secondList.querySelector('li').textContent).toBe('Edited')
+      expect(first.container.querySelector('ul li')).toBe(firstRow)
+      expect(firstRow.textContent).toBe('First')
+    } finally {
+      first.destroy()
+      second.destroy()
+    }
+  })
+
   it('installs inline templates and styles', () => {
     const container = document.createElement('div')
     document.body.append(container)
@@ -558,7 +1014,6 @@ describe('app integration details', () => {
       container,
       components: {
         base: {
-          data: { fromComponent: true, overridden: false },
           actions: {
             componentAction() { return 'component' }
           }
@@ -571,7 +1026,6 @@ describe('app integration details', () => {
       __proto__: { polluted: true }
     })
 
-    expect(testApp.data.fromComponent).toBe(true)
     expect(testApp.data.overridden).toBe(true)
     expect(testApp.actions.componentAction()).toBe('component')
     expect(testApp.actions.appAction()).toBe('app')
@@ -681,6 +1135,7 @@ describe('app integration details', () => {
     await testApp.actions.loadItem()
 
     expect(testApp.api).toBe(api)
+    expect(testApp.api.get).toBe(api.get)
     expect(testApp.data.item).toEqual({ path: 'foo.json', title: 'Loaded' })
     expect(warn).not.toHaveBeenCalled()
     testApp.destroy()
@@ -698,7 +1153,7 @@ describe('app integration details', () => {
     })
 
     expect(testApp.commmands).toEqual({ save: expect.any(Function) })
-    expect(testApp.commands).toBeUndefined()
+    expect(Object.hasOwn(testApp.commands, 'save')).toBe(false)
     expect(warn).toHaveBeenCalledWith('simplyflow/app: unknown option "commmands". Did you mean "commands"? The option was still added to the app as "app.commmands".')
     testApp.destroy()
     warn.mockRestore()

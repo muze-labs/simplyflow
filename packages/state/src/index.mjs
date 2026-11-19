@@ -816,10 +816,11 @@ export function effect(fn) {
  * Stops an effect, clears its dependencies, and releases its reusable function mapping.
  *
  * @param {Proxy} connectedSignal Signal returned by effect(), throttledEffect(), or clockEffect().
+ * @param {{flush?: boolean}} [options] Run a pending throttled update before disposal.
  * @returns {void}
  * @throws {TypeError} If connectedSignal is not a signal.
  */
-export function destroy(connectedSignal) {
+export function destroy(connectedSignal, { flush = false } = {}) {
     if (!isSignal(connectedSignal)) {
         throw new TypeError('simplyflow/state: destroy() expects an effect signal')
     }
@@ -829,7 +830,7 @@ export function destroy(connectedSignal) {
         return
     }
 
-    compute.destroy?.()
+    compute.destroy?.(flush)
     clearListeners(compute)
 
     if (compute.fn) {
@@ -947,7 +948,11 @@ export function throttledEffect(fn, throttleTime) {
     }
 
     compute.fn = fn
-    compute.destroy = () => {
+    compute.destroy = flush => {
+        if (flush && hasChange) {
+            throttledUntil = 0
+            compute()
+        }
         if (timeout) {
             globalThis.clearTimeout(timeout)
             timeout = null
@@ -956,7 +961,12 @@ export function throttledEffect(fn, throttleTime) {
     }
     effectMap.set(connectedSignal, compute)
 
-    compute()
+    try {
+        compute()
+    } catch (error) {
+        destroy(connectedSignal)
+        throw error
+    }
     return connectedSignal
 }
 

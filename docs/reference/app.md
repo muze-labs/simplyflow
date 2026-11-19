@@ -67,7 +67,7 @@ const contacts = app({
 | `start` | `function` | Optional startup function called with `this` set to the app. Routes are initialized after it finishes. |
 | `onError` | `function` | Optional error handler for `start()` and action errors. |
 
-Unknown top-level options are copied onto the app instance. This is useful for services:
+Custom top-level options are available as properties on the app. This is useful for services:
 
 ```js
 app({
@@ -92,18 +92,115 @@ The returned app object contains:
 | --- | --- |
 | `app.data` | Reactive application data. Change this in actions to update the page. |
 | `app.container` | The app container element. |
-| `app.actions` | Proxied actions object, when actions are configured. |
-| `app.commands` | Command controller, when commands are configured. |
-| `app.routes` | Route controller, when routes are configured. |
-| `app.shortcuts` | Shortcut controller, when shortcuts are configured. |
-| `app.behaviors` | Behavior controller, when behaviors are configured. |
+| `app.actions` | Named actions called with the app as their receiver. |
+| `app.commands` | Command controller for the app container. |
+| `app.routes` | Route controller. |
+| `app.shortcuts` | Keyboard shortcut controller. |
+| `app.behaviors` | DOM behavior controller. |
 | `app.includes` | Include controller. Created automatically for the app container. |
-| `app.transformers` | Transformer map passed to the default binding. |
+| `app.components` | Source component definitions, including the top-level app definition. |
+| `app.transformers` | The app’s merged, editable map of named binding transformers. |
 | `app.binding` | Lower-level binding controller. |
 | `app.destroyed` | `true` after `app.destroy()` is called. |
 
 The app object is also available as `this` inside commands, actions, behaviors, route functions and lifecycle functions.
 
+
+Each app starts with its own empty map for any omitted built-in definition
+section. The controllers are ready when `simply.app()` returns, so an existing
+button with `data-simply-command="save"` can use handlers added later.
+
+```js
+const editor = simply.app()
+editor.actions.save = function () { this.data.saved = true }
+editor.commands.save = function () { this.actions.save() }
+```
+
+## Component definitions and live edits
+
+SimplyFlow merges nested components before their parent, siblings in declaration
+order, and the top-level app definition last. Top-level startup and error handling
+keep their usual lifecycle. Inspect a component through its original hierarchy.
+A nested name is also available directly on `app.components` when the name is free.
+
+The top-level definition is available as `app.components.app`. When the caller
+supplies a component map, `app.components.app.components` records its root
+entries in mount order. The map keeps references to the authored components.
+Apps can use that order to reproduce precedence. If `A` includes `B` and
+both define a `save` command, roots `{ A }` select `A.commands.save` and roots
+`{ A, B }` select `B.commands.save`. Both expose `app.components.B`.
+
+Components can supply defaults in `data`. On each mount,
+SimplyFlow calls `structuredClone` on each component’s data before merging its
+fields in component order. Top-level `options.data` takes precedence. A later
+field replaces an earlier value, including an array or object, unless both
+values are marked with `simply.mergeable()`.
+
+Component defaults must be structured-cloneable. Use `ArrayBuffer` for binary
+defaults that need independent storage. Cloning a `SharedArrayBuffer` preserves
+its shared backing memory. The authored defaults remain available on the
+source component.
+SimplyFlow uses top-level data values and later assignments to `app.data`
+without cloning them. Deleting a field removes it from the running app.
+
+SimplyFlow reserves the exact component
+name `app` at every level. Rename any component with that name before calling
+`simply.app()`, or construction will throw an error.
+
+```js
+const news = simply.app({
+  components: { editor },
+  transformers: { label: { render: renderNewsLabel } }
+})
+
+news.transformers.label = previewLabel
+```
+
+At startup, `label` combines the app’s `render` hook with any `extract` hook
+supplied by `editor`. Assigning `previewLabel` replaces the whole entry for
+this app. Binding looks it up on the next render or extraction. Deleting an
+entry removes it. Apps can use the authored definitions on `app.components`
+to restore the entry.
+
+## Custom definition maps
+
+`simply.mergeable(object)` marks a custom object for composition and returns
+the same object. The module export is `mergeable`. A reusable component can
+import this helper from its own copy of SimplyFlow. Apps mounted by another
+copy in the same window recognize the marker and each get their own editable map.
+Built-in sections such as
+`commands` and `transformers` already describe maps and keep their usual syntax.
+
+```js
+const editor = {
+  api: simply.mergeable({ formatLabel, saveDraft })
+}
+
+const news = simply.app({
+  components: { editor },
+  api: simply.mergeable({ formatLabel: formatNewsLabel }),
+  storage: storageService
+})
+```
+
+Here `news.api` has both methods. Assigning `news.api.formatLabel` edits the
+running app. The source definitions remain available on `news.components`.
+
+Unmarked custom objects and arrays are used by reference. In this example
+`news.storage === storageService`, including its getters, setters and internal
+state. The marker applies only to its own map. Mark a nested custom map separately
+when its members should also compose. If a later contribution at the same
+property is unmarked, it supplies the whole value.
+
+Entries in editable maps must be configurable. Composition preserves their
+accessors, enumerability, writability and symbol keys.
+Runtime commands, actions and
+shortcuts can be assigned directly on their controllers. Register routes
+with `app.routes.load(routes)` and behaviors in `app.behaviors.behaviors`.
+
+At startup the app installs its named templates and styles into its container.
+Apps that support runtime editing can update those DOM elements directly
+and refresh rendered instances with [the binding’s rerender method](bind.md#refreshing-a-template).
 
 ## Binding transformers
 

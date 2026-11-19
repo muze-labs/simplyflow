@@ -23,7 +23,10 @@ function transformer(context, next) {
 }
 ```
 
-Transformers are called with `this` set to the binding instance.
+Both render and extract receive `(context, next)` with `this` set to the
+binding. In an app-created binding, `this.app` is the owning app. For example,
+a transformer method can call `this.app.api.formatLabel(context.value)`.
+In a standalone binding without an owner, `this.app` is `undefined`.
 
 ## Render and extract transformer signature
 

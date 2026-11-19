@@ -118,3 +118,39 @@ Returns the value at a binding path. Supports binding special paths such as `:ro
 ### `trace(path)`
 
 Returns global binding trace data for a path.
+
+## Refreshing a template
+
+Bindings resolve `<template rel="card">` within their container. Put the
+corresponding `<template id="card">` inside that container, or supply `card` in
+the app’s `templates` option. Sibling apps can use the same template name.
+
+After editing a named template element in place, pass a bound field, list, or
+map and that template to `binding.rerender(element, template)`. The binding
+uses its current data and replaces the instances of that template inside the
+host. Other rows retain their DOM nodes. For an expanded `<simply-render>`,
+pass its rendered root as the element.
+
+```js
+const template = app.container.querySelector('template#card')
+template.innerHTML = editedMarkup
+for (const use of app.container.querySelectorAll('template[rel="card"]')) {
+  app.binding.rerender(use.parentElement, template)
+}
+for (const root of app.container.querySelectorAll('[data-simply-template="card"]')) {
+  app.binding.rerender(root, template)
+}
+```
+
+A bound template can be empty or contain one root element. Whitespace and
+comments may surround the root. Wrap text in an element to render it.
+
+Clearing a bound template leaves one comment per rendered instance, such as
+`<!-- simply-template=card -->`. The trimmed comment text uses
+`URLSearchParams` encoding. Its required `simply-template` parameter contains
+the template ID (an empty string for an unnamed inline template). Restore the
+markup and call `rerender(host, template)` again to render the current data.
+
+The method returns `true` after refreshing a matching instance. It returns
+`false` for an unrelated target, or when replacement would remove the focused
+element. In that case, retry after focus leaves the instance. Pending bound edits are committed as old bindings are released.

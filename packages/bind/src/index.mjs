@@ -1,5 +1,7 @@
 import { throttledEffect, destroy } from '@muze-labs/simplyflow-state'
 import { escape_html, fixed_content, attributes } from './transformers.mjs'
+import { setItemKey } from './item-key.mjs'
+import { releaseDomBinding } from './dom.mjs'
 import * as render from './render.mjs'
 import { DEP } from '@muze-labs/simplyflow-state/symbols'
 
@@ -18,6 +20,7 @@ class SimplyBind
      *  - container (HTMLElement) - the dom element to use as the root for all bindings
      *  - attribute (string) - the prefix for the field, edit, list and map attributes, e.g. 'data-bind'
      *  - transformers (object name:function) - a map of transformer names and functions
+     *  - app (object) - optional owning app, available as this.app in transformers
      *  - render (object with field, list and map properties); edit uses field renderers
      */
     constructor(options)
@@ -61,6 +64,7 @@ class SimplyBind
         if (!options?.root) {
             throw new Error('bind needs at least options.root set')
         }
+        this.app = options.app
         this.options = Object.assign({}, defaultOptions, options)
         if (options.transformers) {
             this.options.transformers = Object.assign({}, defaultTransformers, options?.transformers)
@@ -80,25 +84,22 @@ class SimplyBind
 
         // sets up the effect that updates the element if its
         // data binding value changes
-        const renderElement = (el) => {
+        const renderElement = (el, refreshTemplate) => {
             this.bindings.set(el, throttledEffect(() => {
                 if (!el.isConnected) {
                     // el is no longer part of this document
-                    untrack(el, this.getBindingPath(el))
-                    const binding = this.bindings.get(el)
-                    if (binding) {
-                        destroy(binding)
-                        this.bindings.delete(el)
-                    }
+                    this.releaseBinding(el)
                     // doing this here instead of in a mutationobserver
                     // allows an element to be temporary removed and then inserted
                     // without the binding having to be reset
                     return
                 }
                 let context = {
-                    templates: el.querySelectorAll(':scope > template'),
-                    attribute: getBindingAttribute(el)
+                    templates: Array.from(el.children).filter(child => child.localName === 'template'),
+                    attribute: getBindingAttribute(el),
+                    refreshTemplate
                 }
+                refreshTemplate = undefined
                 context.edit = context.attribute === this.options.attribute+'-edit'
                 context.path = this.getBindingPath(el)
                 context.value = getValueByPath(this.options.root, context.path)
@@ -133,6 +134,34 @@ class SimplyBind
                 .map(transformer => getTransformerPhase(transformer, 'render'))
                 .filter(Boolean))
             runTransformerStack.call(this, transformers, context)
+        }
+
+        this.rerender = (element, template) => {
+            if (!template || !this.observer || !this.options.container.contains(element)) {
+                return false
+            }
+            const standalone = element[DEP.TEMPLATE] === template && element[DEP.RERENDER]
+            const roots = standalone ? [element] :
+                Array.from(element.childNodes).filter(child => child[DEP.TEMPLATE] === template)
+            if (!roots.length || roots.some(root => root.contains(root.ownerDocument.activeElement))) {
+                return false
+            }
+            if (standalone) {
+                standalone()
+            } else {
+                const previous = this.bindings.get(element)
+                if (!previous) {
+                    return false
+                }
+                renderElement(element, template)
+                destroy(previous)
+            }
+            for (const node of this.bindings.keys()) {
+                if (!node.isConnected && roots.some(root => root.contains(node))) {
+                    this.releaseBinding(node, true)
+                }
+            }
+            return true
         }
 
         // given a set of elements with data bind attribute
@@ -219,12 +248,23 @@ class SimplyBind
             result.innerHTML = '<!-- no matching template -->'
             return result
         }
-        let clone = template.content.cloneNode(true)
-        if (!clone.children?.length) {
-            return clone
+        const content = template.content
+        const hasRootText = Array.from(content.childNodes).some(node =>
+            node.nodeType === Node.TEXT_NODE && /[^\t\n\f\r ]/.test(node.data)
+        )
+        if (content.childElementCount > 1 || hasRootText) {
+            throw new Error(
+                'simplyflow/bind: template must be empty or contain a single root element',
+                { cause: template }
+            )
         }
-        if (clone.children.length>1) {
-            throw new Error('template must contain a single root node', { cause: template })
+
+        const clone = content.cloneNode(true)
+        let root = clone.firstElementChild
+        if (!root) {
+            const params = new URLSearchParams({ 'simply-template': template.id })
+            root = template.ownerDocument.createComment(` ${params} `)
+            clone.replaceChildren(root)
         }
         const attribute = this.options.attribute
 
@@ -249,12 +289,12 @@ class SimplyBind
         }
         this.applyTemplateCommandValues(clone, template.links, path, index)
         if (typeof index !== 'undefined') {
-            clone.children[0].setAttribute(attribute+'-key',index)
+            setItemKey(root, attribute+'-key', index)
         }
         // keep track of the used template and value reference, so list items can be
         // reused when an array insertion shifts their numeric index.
-        clone.children[0][DEP.TEMPLATE] = template
-        clone.children[0][DEP.VALUE] = value
+        root[DEP.TEMPLATE] = template
+        root[DEP.VALUE] = value
 
         // return clone, not the firstChild, so that all whitespace is cloned as well
         return clone
@@ -332,11 +372,14 @@ class SimplyBind
         if (!el.hasAttribute(transformAttribute)) {
             return []
         }
+        const appTransformers = this.app?.transformers
         return el.getAttribute(transformAttribute)
             .split(' ')
             .filter(Boolean)
             .map(name => {
-                const transformer = this.options.transformers[name]
+                const transformer = appTransformers && Object.hasOwn(appTransformers, name)
+                    ? appTransformers[name]
+                    : this.options.transformers[name]
                 if (!transformer) {
                     console.warn('No transformer with name '+name+' configured', {cause: el})
                     return null
@@ -414,7 +457,8 @@ class SimplyBind
         }
         let rel = template?.getAttribute('rel')
         if (rel) {
-            let replacement = document.querySelector('template#'+rel)
+            const container = this.options.container
+            const replacement = container.querySelector('template#' + CSS.escape(rel))
             if (!replacement) {
                 throw new Error('Could not find template with id '+rel)
             }
@@ -426,14 +470,24 @@ class SimplyBind
         return template
     }
 
-    destroy()
+    releaseBinding(element, flush = false)
     {
-        this.bindings.forEach((binding, element) => {
+        const binding = this.bindings.get(element)
+        if (binding) {
+            this.bindings.delete(element)
             untrack(element, this.getBindingPath(element))
             destroy(binding)
-        })
-        this.bindings = new Map()
-        this.observer.disconnect()
+            releaseDomBinding(element, flush)
+        }
+    }
+
+    destroy()
+    {
+        for (const element of this.bindings.keys()) {
+            this.releaseBinding(element)
+        }
+        this.observer?.disconnect()
+        this.observer = null
     }
 
 }

@@ -3,7 +3,7 @@ import * as model from '@muze-labs/simplyflow-model'
 import * as state from '@muze-labs/simplyflow-state'
 import './render.mjs'
 import * as dom from '@muze-labs/simplyflow-bind/dom'
-import { app } from '@muze-labs/simplyflow-app'
+import { app, mergeable } from '@muze-labs/simplyflow-app'
 import { actions } from '@muze-labs/simplyflow-app/action'
 import { behaviors } from '@muze-labs/simplyflow-app/behavior'
 import { commands } from '@muze-labs/simplyflow-app/command'
@@ -35,6 +35,7 @@ const modelApi = Object.assign(model.model, {
 
 Object.assign(globalThis.simply, {
     app,
+    mergeable,
     bind,
     model: modelApi,
     state,
@@ -64,6 +65,7 @@ delete globalThis.simply.advanced
 
 export {
     app,
+    mergeable,
     bind,
     model,
     state,
