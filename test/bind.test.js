@@ -36,6 +36,61 @@ describe('bind can', () => {
     }
   })
 
+  it('restores cleared rows in place after list data changes', async () => {
+    document.body.innerHTML = `<template id="card"><li data-flow-field=":value"></li></template>
+      <ul data-flow-list="items"><template data-flow-match="keep"><i>Keep</i></template>
+      <template rel="card"></template></ul>`
+    const data = signal({ items: ['one', 'keep', 'two'] })
+    const binding = bind({ root: data, twoway: true })
+    const host = document.querySelector('ul')
+    const template = document.getElementById('card')
+    const original = template.innerHTML
+    const kept = host.querySelector('i')
+    try {
+      template.innerHTML = ''
+      expect(binding.rerender(host, template)).toBe(true)
+      const comments = () => Array.from(host.childNodes).filter(node => node.nodeType === Node.COMMENT_NODE)
+      expect(comments().map(node => node.data)).toEqual([' simply-template=card ', ' simply-template=card '])
+      await wait()
+      expect(Array.from(data.items)).toEqual(['one', 'keep', 'two'])
+      data.items.splice(0, 1)
+      data.items.push('three')
+      await wait()
+      template.innerHTML = original
+      expect(binding.rerender(host, template)).toBe(true)
+      await wait()
+      expect(comments()).toHaveLength(0)
+      expect(host.querySelector('i')).toBe(kept)
+      expect(Array.from(host.querySelectorAll('li'), row => row.textContent)).toEqual(['two', 'three'])
+      expect(Array.from(data.items)).toEqual(['keep', 'two', 'three'])
+    } finally {
+      binding.destroy()
+    }
+  })
+
+  it.each([['field', 'first'], ['map', { first: 1, second: 2 }]])(
+    'restores an initially empty named template in a %s', (kind, items) => {
+      document.body.innerHTML = `<template id="cart+é&amp;row"></template>
+        <main data-flow-${kind}="items"><template rel="cart+é&amp;row"></template></main>`
+      const binding = bind({ root: signal({ items }) })
+      const host = document.querySelector('main')
+      const template = document.getElementById('cart+é&row')
+      try {
+        const markers = Array.from(host.childNodes).filter(node => node.nodeType === Node.COMMENT_NODE)
+        expect(markers).toHaveLength(kind === 'field' ? 1 : 2)
+        for (const marker of markers) {
+          expect(marker.data.trim()).toBe('simply-template=cart%2B%C3%A9%26row')
+        }
+        template.innerHTML = '<b>Restored</b>'
+        expect(binding.rerender(host, template)).toBe(true)
+        expect(host.querySelectorAll('b')).toHaveLength(markers.length)
+        expect(markers.every(node => !node.isConnected)).toBe(true)
+      } finally {
+        binding.destroy()
+      }
+    }
+  )
+
   it('retains a focused edit and commits pending input when the editor retries', async () => {
     document.body.innerHTML = `<template id="card"><input data-flow-edit=":value"></template>
       <main data-flow-list="names"><template rel="card"></template></main>`

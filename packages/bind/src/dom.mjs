@@ -1,5 +1,6 @@
 import { createSignal, getSignal, isSignal, signal as stateSignal, notifyGet, notifySet, makeContext,
          throttledEffect, untracked, batch, destroy } from '@muze-labs/simplyflow-state'
+import { getItemKey } from './item-key.mjs'
 import { getValueByPath } from './index.mjs'
 import { setValueByPath, getProperties } from './render.mjs'
 import { DEP } from '@muze-labs/simplyflow-state/symbols'
@@ -182,21 +183,24 @@ export function trackDomList(element)
     const s = signal(element, {
         childList: true
     })
+    const keyAttribute = (this.options.attribute || 'data-flow') + '-key'
     const effect = throttledEffect(() => {
-        const children = Array.from(s.children)
+        // Child-list mutations notify this dependency for elements and comments.
+        notifyGet(s, 'children')
         untracked(() => { // don't track access to the data, only track dom changes
             batch(() => { // apply all changes in the list as one change
                 let key=0
                 const currentList = getValueByPath(this.options.root, path)
                 const source = currentList.slice() // make sure changes in currentList don't affect the original source
-                for (const item of children) {
+                for (const item of element.childNodes) {
                     if (item.tagName==='TEMPLATE') {
                         continue
                     }
-                    if (item.dataset.flowKey) { //FIXME: could be other attribute name
-                        if (item.dataset.flowKey!=key) {
+                    const oldKey = getItemKey(item, keyAttribute)
+                    if (oldKey != null) {
+                        if (oldKey != key) {
                             setValueByPath(this.options.root, path+'.'+key,
-                                source[item.dataset.flowKey])
+                                source[oldKey])
                         }
                         key++
                     }

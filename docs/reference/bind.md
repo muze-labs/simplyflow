@@ -142,6 +142,12 @@ for (const root of app.container.querySelectorAll('[data-simply-template="card"]
 }
 ```
 
+Clearing a bound template leaves one comment per rendered instance, such as
+`<!-- simply-template=card -->`. The trimmed comment text uses
+`URLSearchParams` encoding. Its required `simply-template` parameter contains
+the template ID (an empty string for an unnamed inline template). Restore the
+markup and call `rerender(host, template)` again to render the current data.
+
 The method returns `true` after refreshing a matching instance. It returns
 `false` for an unrelated target, or when replacement would remove the focused
 element. In the latter case the editor can retry after focus leaves the

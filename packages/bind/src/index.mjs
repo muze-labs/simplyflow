@@ -1,5 +1,6 @@
 import { throttledEffect, destroy } from '@muze-labs/simplyflow-state'
 import { escape_html, fixed_content, attributes } from './transformers.mjs'
+import { setItemKey } from './item-key.mjs'
 import { releaseDomBinding } from './dom.mjs'
 import * as render from './render.mjs'
 import { DEP } from '@muze-labs/simplyflow-state/symbols'
@@ -141,7 +142,7 @@ class SimplyBind
             }
             const standalone = element[DEP.TEMPLATE] === template && element[DEP.RERENDER]
             const roots = standalone ? [element] :
-                Array.from(element.children).filter(child => child[DEP.TEMPLATE] === template)
+                Array.from(element.childNodes).filter(child => child[DEP.TEMPLATE] === template)
             if (!roots.length || roots.some(root => root.contains(root.ownerDocument.activeElement))) {
                 return false
             }
@@ -248,8 +249,14 @@ class SimplyBind
             return result
         }
         let clone = template.content.cloneNode(true)
-        if (!clone.children?.length) {
-            return clone
+        let root = clone.firstElementChild
+        if (!root) {
+            if (/[^\t\n\f\r ]/.test(clone.textContent)) {
+                return clone
+            }
+            const params = new URLSearchParams({ 'simply-template': template.id })
+            root = template.ownerDocument.createComment(` ${params} `)
+            clone.replaceChildren(root)
         }
         if (clone.children.length>1) {
             throw new Error('template must contain a single root node', { cause: template })
@@ -277,12 +284,12 @@ class SimplyBind
         }
         this.applyTemplateCommandValues(clone, template.links, path, index)
         if (typeof index !== 'undefined') {
-            clone.children[0].setAttribute(attribute+'-key',index)
+            setItemKey(root, attribute+'-key', index)
         }
         // keep track of the used template and value reference, so list items can be
         // reused when an array insertion shifts their numeric index.
-        clone.children[0][DEP.TEMPLATE] = template
-        clone.children[0][DEP.VALUE] = value
+        root[DEP.TEMPLATE] = template
+        root[DEP.VALUE] = value
 
         // return clone, not the firstChild, so that all whitespace is cloned as well
         return clone
@@ -445,7 +452,10 @@ class SimplyBind
         }
         let rel = template?.getAttribute('rel')
         if (rel) {
-            const replacement = this.options.container.querySelector('template#'+rel)
+            const container = this.options.container
+            const replacement = globalThis.CSS?.escape
+                ? container.querySelector('template#' + CSS.escape(rel))
+                : Array.from(container.querySelectorAll('template[id]')).find(node => node.id === rel)
             if (!replacement) {
                 throw new Error('Could not find template with id '+rel)
             }
