@@ -248,18 +248,23 @@ class SimplyBind
             result.innerHTML = '<!-- no matching template -->'
             return result
         }
-        let clone = template.content.cloneNode(true)
+        const content = template.content
+        const hasRootText = Array.from(content.childNodes).some(node =>
+            node.nodeType === Node.TEXT_NODE && /[^\t\n\f\r ]/.test(node.data)
+        )
+        if (content.childElementCount > 1 || hasRootText) {
+            throw new Error(
+                'simplyflow/bind: template must be empty or contain a single root element',
+                { cause: template }
+            )
+        }
+
+        const clone = content.cloneNode(true)
         let root = clone.firstElementChild
         if (!root) {
-            if (/[^\t\n\f\r ]/.test(clone.textContent)) {
-                return clone
-            }
             const params = new URLSearchParams({ 'simply-template': template.id })
             root = template.ownerDocument.createComment(` ${params} `)
             clone.replaceChildren(root)
-        }
-        if (clone.children.length>1) {
-            throw new Error('template must contain a single root node', { cause: template })
         }
         const attribute = this.options.attribute
 

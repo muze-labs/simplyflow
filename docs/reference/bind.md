@@ -142,6 +142,9 @@ for (const root of app.container.querySelectorAll('[data-simply-template="card"]
 }
 ```
 
+A bound template can be empty or contain one root element. Whitespace and
+comments may surround the root. Wrap text in an element to render it.
+
 Clearing a bound template leaves one comment per rendered instance, such as
 `<!-- simply-template=card -->`. The trimmed comment text uses
 `URLSearchParams` encoding. Its required `simply-template` parameter contains

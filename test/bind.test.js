@@ -720,25 +720,15 @@ describe('bind API contract coverage', () => {
     }
   })
 
-  it('allows a template with only text content', async () => {
-    document.body.innerHTML = '<div data-flow-field="mode"><template data-flow-match="text">plain text</template></div>'
-    const data = signal({ mode: 'text' })
-    const databind = bind({ container: document.body, root: data })
+  it.each(['plain text', '<b>one</b>extra text', '<b>one</b><i>two</i>'])(
+    'rejects a bound template with invalid root content (%s)', markup => {
+      document.body.innerHTML = `<div data-flow-field="mode"><template>${markup}</template></div>`
+      const data = signal({ mode: 'anything' })
 
-    try {
-      await wait()
-      expect(document.querySelector('div').textContent).toContain('plain text')
-    } finally {
-      databind.destroy()
+      expect(() => bind({ container: document.body, root: data }))
+        .toThrow('template must be empty or contain a single root element')
     }
-  })
-
-  it('rejects templates with more than one root element', () => {
-    document.body.innerHTML = '<div data-flow-field="mode"><template><b>one</b><i>two</i></template></div>'
-    const data = signal({ mode: 'anything' })
-
-    expect(() => bind({ container: document.body, root: data })).toThrow('template must contain a single root node')
-  })
+  )
 
   it('switches and removes field template output when the matching template changes', async () => {
     document.body.innerHTML = `<div data-flow-field="mode">
