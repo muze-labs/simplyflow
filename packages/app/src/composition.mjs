@@ -3,6 +3,9 @@
 function* componentDefinitions(components, names = Object.keys(components))
 {
     for (const name of names) {
+        if (name === 'app') {
+            throw new Error('simplyflow/app: component name "app" is reserved for the top-level app definition')
+        }
         const definition = components[name]
         if (!definition) {
             continue
@@ -108,14 +111,15 @@ export function composeApp({ components: suppliedComponents, ...appDefinition })
         definitions.push(definition)
     }
 
-    let appKey = 'app'
-    for (let suffix = 2; Object.hasOwn(components, appKey); suffix++) {
-        appKey = 'app' + suffix
-    }
-    components[appKey] = appDefinition
+    components.app = appDefinition
     definitions.push(appDefinition)
-    roots.push(appKey)
-    const currentDefinitions = () => componentDefinitions(components, roots)
+
+    function* currentDefinitions() {
+        yield* componentDefinitions(components, roots)
+        if (components.app) {
+            yield ['app', components.app]
+        }
+    }
 
     const options = Object.create(null)
     for (const definition of definitions) {

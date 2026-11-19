@@ -113,10 +113,10 @@ order, and the top-level app definition last. Top-level startup and error handli
 keep their usual lifecycle. Inspect a component through its original hierarchy.
 A nested name is also available directly on `app.components` when the name is free.
 
-The top-level definition is available as `app.components.app`. If a supplied
-component already occupies that name, it keeps it and the top-level definition
-takes the first free name in `app2`, `app3`, and so on. Apps created
-without a `components` option also have this registry.
+The top-level definition is always available as `app.components.app`, including
+when the app has no supplied components. SimplyFlow reserves the exact component
+name `app` at every level. Rename any component with that name before calling
+`simply.app()`, or construction will throw an error.
 
 ```js
 const news = simply.app({

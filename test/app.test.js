@@ -250,21 +250,32 @@ describe('app API', () => {
     }
   })
 
+  it.each([
+    ['top-level', { app: {} }],
+    ['nested', { editor: { components: { app: {} } } }]
+  ])('rejects a %s component named app before startup', (_, components) => {
+    const start = jest.fn()
+    expect(() => app({ components, start, templates: { card: '<p>Card</p>' } }))
+      .toThrow(/component name "app" is reserved/)
+    expect(start).not.toHaveBeenCalled()
+    expect(document.querySelector('template#card')).toBeNull()
+  })
+
   it('retains same-named components, top-level lifecycle and service identity', () => {
     const nested = { transformers: { label() {} } }
     const shared = { details: { base: true } }
     const parent = {
-      components: { app: nested },
+      components: { editor: nested },
       api: shared,
       start: jest.fn(),
       onError: jest.fn()
     }
-    const namedApp = { transformers: { label() {} } }
+    const editor = { transformers: { label() {} } }
     const service = new Map()
     const start = jest.fn()
     const onError = jest.fn()
     const testApp = app({
-      components: { parent, app: namedApp, app2: {} },
+      components: { parent, editor },
       api: { details: { local: true } },
       service,
       start,
@@ -272,10 +283,10 @@ describe('app API', () => {
     })
 
     try {
-      expect(testApp.components.app).toBe(namedApp)
-      expect(testApp.components.parent.components.app).toBe(nested)
-      expect(testApp.components.app3.start).toBe(start)
-      expect(testApp.transformers.label).toBe(namedApp.transformers.label)
+      expect(testApp.components.editor).toBe(editor)
+      expect(testApp.components.parent.components.editor).toBe(nested)
+      expect(testApp.components.app.start).toBe(start)
+      expect(testApp.transformers.label).toBe(editor.transformers.label)
       expect(testApp.api.details).toEqual({ base: true, local: true })
       expect(shared.details).toEqual({ base: true })
       expect(testApp.service).toBe(service)
