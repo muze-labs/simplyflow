@@ -642,11 +642,12 @@ describe('bind API contract coverage', () => {
     }
   })
 
-  it('throws when a rel template cannot be found', () => {
-    document.body.innerHTML = '<div data-flow-field="value"><template rel="missing-template"></template></div>'
-    const data = signal({ value: true })
-
-    expect(() => bind({ container: document.body, root: data })).toThrow('Could not find template with id missing-template')
+  it('throws when a rel template exists only outside the binding container', () => {
+    document.body.innerHTML = `<template id="card"><b>Outside</b></template>
+      <main><div data-flow-field="value"><template rel="card"></template></div></main>`
+    const container = document.querySelector('main')
+    expect(() => bind({ container, root: signal({ value: true }) }))
+      .toThrow('Could not find template with id card')
   })
 
   it('does not render an item when no template matches that value', async () => {

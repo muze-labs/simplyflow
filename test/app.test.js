@@ -958,6 +958,34 @@ describe('app API', () => {
 
 
 describe('app integration details', () => {
+  it('renders and refreshes each app’s local card template', () => {
+    const list = '<ul data-simply-list="items"><template rel="card"></template></ul>'
+    document.body.innerHTML = `<main>${list}</main><aside>${list}</aside>`
+    const mount = (selector, label) => app({
+      container: document.querySelector(selector),
+      templates: { card: `<li>${label}</li>` },
+      data: { items: ['item'] }
+    })
+    const first = mount('main', 'First')
+    const second = mount('aside', 'Second')
+    try {
+      const firstRow = first.container.querySelector('ul li')
+      const secondList = second.container.querySelector('ul')
+      expect(firstRow.textContent).toBe('First')
+      expect(secondList.querySelector('li').textContent).toBe('Second')
+
+      const card = second.container.querySelector('template#card')
+      card.innerHTML = '<li>Edited</li>'
+      expect(second.binding.rerender(secondList, card)).toBe(true)
+      expect(secondList.querySelector('li').textContent).toBe('Edited')
+      expect(first.container.querySelector('ul li')).toBe(firstRow)
+      expect(firstRow.textContent).toBe('First')
+    } finally {
+      first.destroy()
+      second.destroy()
+    }
+  })
+
   it('installs inline templates and styles', () => {
     const container = document.createElement('div')
     document.body.append(container)

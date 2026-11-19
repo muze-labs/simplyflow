@@ -445,7 +445,7 @@ class SimplyBind
         }
         let rel = template?.getAttribute('rel')
         if (rel) {
-            let replacement = document.querySelector('template#'+rel)
+            const replacement = this.options.container.querySelector('template#'+rel)
             if (!replacement) {
                 throw new Error('Could not find template with id '+rel)
             }

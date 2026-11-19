@@ -121,6 +121,10 @@ Returns global binding trace data for a path.
 
 ## Refreshing a template
 
+Bindings resolve `<template rel="card">` within their container. Put the
+corresponding `<template id="card">` inside that container, or supply `card` in
+the app’s `templates` option. Sibling apps can use the same template name.
+
 After editing a named template element in place, pass a bound field, list, or
 map and that template to `binding.rerender(element, template)`. The binding
 uses its current data and replaces the instances of that template inside the
