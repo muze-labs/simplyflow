@@ -960,7 +960,7 @@ describe('app API', () => {
 describe('app integration details', () => {
   it('keeps a keyed row focused and rebinds its controls after replacement and reorder', async () => {
     document.body.innerHTML = `<ul data-simply-list="rows" data-simply-list-key="id">
-      <template><li><button data-simply-command="select" data-simply-value=":value.id">
+      <template id="row"><li><button data-simply-command="select" data-simply-value=":value.id">
           <span data-simply-field="label"></span></button>
         <input data-simply-edit="label">
         <button data-simply-command="selectIndex" data-simply-value=":key"></button>
@@ -974,12 +974,15 @@ describe('app integration details', () => {
     try {
       await wait()
       const buttons = document.querySelectorAll('[data-simply-command="select"]')
+      const row = buttons[1].closest('li')
+      expect(buttons[1].querySelector('span').closest('[data-simply-template="row"]')).toBe(row)
       const focused = buttons[1]
       focused.focus()
 
       mounted.data.rows = [{ id: 'b', label: 'New B' }, { id: 'a', label: 'New A' }]
       await wait()
       expect([...document.querySelectorAll('[data-simply-command="select"]')]).toEqual([buttons[1], buttons[0]])
+      expect(focused.closest('[data-simply-template="row"]')).toBe(row)
       expect(document.activeElement).toBe(focused)
       expect(focused.textContent.trim()).toBe('New B')
       focused.click()
@@ -1013,12 +1016,15 @@ describe('app integration details', () => {
       const firstRow = first.container.querySelector('ul li')
       const secondList = second.container.querySelector('ul')
       expect(firstRow.textContent).toBe('First')
+      expect(firstRow.getAttribute('data-simply-template')).toBe('card')
       expect(secondList.querySelector('li').textContent).toBe('Second')
+      expect(secondList.querySelector('li[data-simply-template="card"]')).not.toBeNull()
 
       const card = second.container.querySelector('template#card')
       card.innerHTML = '<li>Edited</li>'
       expect(second.binding.rerender(secondList, card)).toBe(true)
       expect(secondList.querySelector('li').textContent).toBe('Edited')
+      expect(secondList.querySelector('li[data-simply-template="card"]')).not.toBeNull()
       expect(first.container.querySelector('ul li')).toBe(firstRow)
       expect(firstRow.textContent).toBe('First')
     } finally {

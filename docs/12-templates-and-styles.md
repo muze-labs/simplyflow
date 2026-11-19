@@ -61,4 +61,17 @@ A list can use a template already present in the page, or one installed through 
 
 For many beginner apps, keeping the template in HTML is easiest to read. The `templates` option is useful when a template belongs with the JavaScript that creates a feature.
 
+## Identify the template behind a rendered element
+
+When SimplyFlow binds a named template, its rendered root gets
+`data-simply-template` with the template ID. A list using
+`<template rel="dragonRow"></template>` marks the row with `dragonRow`.
+From a descendant, use `element.closest('[data-simply-template]')` to find
+the nearest marked root, then look up that ID within the owning app.
+
+SimplyFlow owns this attribute. It is absent for an anonymous template.
+Standalone bindings use their binding prefix, so the default is
+`data-flow-template`. Empty templates continue to render a comment with
+the encoded `simply-template` value.
+
 Next: [components](13-components.md).
