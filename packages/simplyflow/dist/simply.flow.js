@@ -34,6 +34,7 @@
     ITERATE: Symbol.for("@simplyedit/simplyflow.iterate"),
     XRAY: Symbol.for("@simplyedit/simplyflow.xRay"),
     SIGNAL: Symbol.for("@simplyedit/simplyflow.Signal"),
+    RERENDER: Symbol.for("@simplyedit/simplyflow.rerender"),
     TEMPLATE: Symbol.for("@simplyedit/simplyflow.bindTemplate"),
     VALUE: Symbol.for("@simplyedit/simplyflow.bindValue"),
     LENGTH: "length",
@@ -592,7 +593,7 @@
     compute();
     return connectedSignal;
   }
-  function destroy(connectedSignal) {
+  function destroy(connectedSignal, { flush = false } = {}) {
     if (!isSignal(connectedSignal)) {
       throw new TypeError("simplyflow/state: destroy() expects an effect signal");
     }
@@ -600,7 +601,7 @@
     if (!compute) {
       return;
     }
-    compute.destroy?.();
+    compute.destroy?.(flush);
     clearListeners(compute);
     if (compute.fn) {
       signals.delete(compute.fn);
@@ -647,7 +648,11 @@
     runListeners(clocked);
     runListeners(ready);
   }
-  function throttledEffect(fn, throttleTime) {
+  function scheduleTimeout(run, delay) {
+    const timer = globalThis.setTimeout(run, delay);
+    return () => globalThis.clearTimeout(timer);
+  }
+  function throttledEffect(fn, throttleTime, { schedule = scheduleTimeout } = {}) {
     assertFunction(fn, "throttledEffect");
     if (!Number.isFinite(throttleTime) || throttleTime < 0) {
       throw new TypeError("simplyflow/state: throttledEffect() expects throttleTime to be a non-negative number");
@@ -657,40 +662,50 @@
     const connectedSignal = effectSignal(fn);
     let throttledUntil = 0;
     let hasChange = true;
-    let timeout = null;
+    let cancelPending = null;
     const compute = function computeEffect() {
       const now = Date.now();
       if (throttledUntil > now) {
         hasChange = true;
-        schedule();
+        scheduleUpdate();
         return;
       }
       runTracked(compute, connectedSignal, fn, throttledEffect);
       hasChange = false;
       throttledUntil = Date.now() + throttleTime;
     };
-    function schedule() {
-      if (timeout) {
+    function scheduleUpdate() {
+      if (cancelPending) {
         return;
       }
       const delay = Math.max(0, throttledUntil - Date.now());
-      timeout = globalThis.setTimeout(() => {
-        timeout = null;
+      cancelPending = schedule(() => {
+        cancelPending = null;
         if (hasChange) {
           compute();
         }
       }, delay);
     }
     compute.fn = fn;
-    compute.destroy = () => {
-      if (timeout) {
-        globalThis.clearTimeout(timeout);
-        timeout = null;
+    compute.destroy = (flush) => {
+      try {
+        if (flush && hasChange) {
+          throttledUntil = 0;
+          compute();
+        }
+      } finally {
+        cancelPending?.();
+        cancelPending = null;
+        hasChange = false;
       }
-      hasChange = false;
     };
     effectMap.set(connectedSignal, compute);
-    compute();
+    try {
+      compute();
+    } catch (error) {
+      destroy(connectedSignal);
+      throw error;
+    }
     return connectedSignal;
   }
   var clockQueues = /* @__PURE__ */ new WeakMap();
@@ -988,10 +1003,25 @@
   var dom_exports = {};
   __export(dom_exports, {
     findAttribute: () => findAttribute,
+    releaseDomBinding: () => releaseDomBinding,
     signal: () => signal2,
     trackDomField: () => trackDomField,
     trackDomList: () => trackDomList
   });
+
+  // ../bind/src/item-key.mjs
+  var commentKeys = /* @__PURE__ */ new WeakMap();
+  function getItemKey(node, attribute) {
+    return node.getAttribute?.(attribute) ?? commentKeys.get(node);
+  }
+  function setItemKey(node, attribute, key) {
+    if (node.nodeType === Node.COMMENT_NODE) {
+      commentKeys.set(node, String(key));
+    } else {
+      node.setAttribute(attribute, key);
+    }
+  }
+  var commandKeyPaths = /* @__PURE__ */ new WeakMap();
 
   // ../bind/src/render.mjs
   function writesFromDom(binding, context) {
@@ -1095,35 +1125,81 @@
       }
     });
   }
+  var stableRowKeys = /* @__PURE__ */ new WeakMap();
+  function listKeys(values, path2) {
+    const seen = /* @__PURE__ */ new Set();
+    return Array.from(values, (value) => {
+      const key = getValueByPath(value, path2);
+      if (typeof key !== "string" && !Number.isFinite(key) || seen.has(key)) {
+        throw new Error(
+          `simplyflow/bind: list key "${path2}" must give each row a unique string or finite number`
+        );
+      }
+      seen.add(key);
+      return key;
+    });
+  }
   function arrayByTemplates(context) {
     const attribute = this.options.attribute;
     const attributes2 = [attribute + "-field", attribute + "-edit", attribute + "-list", attribute + "-map", attribute + "-value-path"];
-    const attrQuery = "[" + attributes2.join("],[") + "]";
+    const valueAttribute = attribute + "-value";
+    const attrQuery = "[" + [...attributes2, valueAttribute].join("],[") + "]";
     const keyAttribute = attribute + "-key";
-    const items = Array.from(context.element.querySelectorAll(":scope > [" + keyAttribute + "]"));
+    const items = Array.from(context.element.childNodes).filter((node) => getItemKey(node, keyAttribute) != null);
     const usedItems = /* @__PURE__ */ new Set();
     let cursor = 0;
+    const host = context.element;
+    const keyPath = host.getAttribute(attribute + "-list-key");
+    const keys = keyPath ? listKeys(context.value, keyPath) : null;
+    const rowsByKey = keys ? new Map(items.map((item) => [stableRowKeys.get(item), item])) : null;
+    const focused = keys ? host.getRootNode().activeElement : null;
+    const preserveFocus = focused && host.contains(focused);
     context.list = context.value;
+    function createRow(binding, key) {
+      const fragment = binding.applyTemplate(context);
+      if (keys) {
+        const root = Array.from(fragment.childNodes).find((node) => node[DEP.TEMPLATE]);
+        if (root) {
+          stableRowKeys.set(root, key);
+        }
+      }
+      return fragment;
+    }
     for (let index = 0; index < context.value.length; index++) {
       context.index = index;
       const value = context.list[index];
-      let item = nextUnusedItem(items, usedItems, cursor);
+      const item = nextUnusedItem(items, usedItems, cursor);
+      const stableKey = keys?.[index];
       if (!item) {
-        context.element.appendChild(this.applyTemplate(context));
+        host.appendChild(createRow(this, stableKey));
         continue;
       }
       const newTemplate = this.findTemplate(context.templates, value);
-      const currentValueMatches = item[DEP.VALUE] === value;
-      let reusableItem = currentValueMatches ? item : findReusableItem(items, usedItems, value, newTemplate, cursor + 1);
+      const reusableItem = rowsByKey ? rowsByKey.get(stableKey) : item[DEP.VALUE] === value ? item : findReusableItem(items, usedItems, value, newTemplate, cursor + 1);
       if (reusableItem) {
-        if (newTemplate != reusableItem[DEP.TEMPLATE]) {
-          context.element.replaceChild(this.applyTemplate(context), reusableItem);
+        const replace = newTemplate !== reusableItem[DEP.TEMPLATE] || context.refreshTemplate && newTemplate === context.refreshTemplate;
+        if (replace) {
+          const replacement = createRow(this, stableKey);
+          if (keys && reusableItem !== item) {
+            host.insertBefore(replacement, item);
+            reusableItem.remove();
+          } else {
+            host.replaceChild(replacement, reusableItem);
+          }
         } else {
           if (reusableItem !== item) {
-            context.element.insertBefore(reusableItem, item);
+            if (keys && host.moveBefore) {
+              host.moveBefore(reusableItem, item);
+            } else {
+              host.insertBefore(reusableItem, item);
+            }
           }
-          updateItemKey(reusableItem, index, context.path, keyAttribute, attributes2, attrQuery);
+          const changed = keys && (getItemKey(reusableItem, keyAttribute) !== String(index) || reusableItem[DEP.VALUE] !== value);
+          updateItemKey(reusableItem, index, context.path, keyAttribute, attributes2, attrQuery, valueAttribute);
           reusableItem[DEP.VALUE] = value;
+          if (keys && changed && reusableItem.nodeType === Node.ELEMENT_NODE) {
+            this.rebindListItem(reusableItem);
+          }
         }
         usedItems.add(reusableItem);
         if (reusableItem === item) {
@@ -1131,12 +1207,15 @@
         }
         continue;
       }
-      context.element.insertBefore(this.applyTemplate(context), item);
+      host.insertBefore(createRow(this, stableKey), item);
     }
-    for (let item of items) {
+    for (const item of items) {
       if (!usedItems.has(item)) {
         item.remove();
       }
+    }
+    if (preserveFocus && host.contains(focused) && host.getRootNode().activeElement !== focused) {
+      focused.focus({ preventScroll: true });
     }
     if (this.options.twoway) {
       trackDomList.call(this, context.element);
@@ -1159,13 +1238,16 @@
       }
     }
   }
-  function updateItemKey(item, key, path2, keyAttribute, attributes2, attrQuery) {
-    const oldKey = item.getAttribute(keyAttribute);
+  function updateItemKey(item, key, path2, keyAttribute, attributes2, attrQuery, valueAttribute) {
+    const oldKey = getItemKey(item, keyAttribute);
     const newKey = "" + key;
     if (oldKey === newKey) {
       return;
     }
-    item.setAttribute(keyAttribute, newKey);
+    setItemKey(item, keyAttribute, newKey);
+    if (item.nodeType === Node.COMMENT_NODE) {
+      return;
+    }
     const oldPrefix = path2 + "." + oldKey;
     const newPrefix = path2 + "." + newKey;
     const bindings = Array.from(item.querySelectorAll(attrQuery));
@@ -1173,6 +1255,13 @@
       bindings.unshift(item);
     }
     for (let binding of bindings) {
+      const commandPath = commandKeyPaths.get(binding);
+      if (commandPath === oldPrefix) {
+        binding.setAttribute(valueAttribute, newKey);
+        commandKeyPaths.set(binding, newPrefix);
+      } else if (commandPath?.startsWith(oldPrefix + ".")) {
+        commandKeyPaths.set(binding, newPrefix + commandPath.slice(oldPrefix.length));
+      }
       for (let attr of attributes2) {
         const bindPath = binding.getAttribute(attr);
         if (!bindPath || bindPath.substr(0, 5) === ":root") {
@@ -1189,9 +1278,10 @@
   function objectByTemplates(context) {
     const attribute = this.options.attribute;
     const attributes2 = [attribute + "-field", attribute + "-edit", attribute + "-list", attribute + "-map", attribute + "-value-path"];
-    const attrQuery = "[" + attributes2.join("],[") + "]";
+    const valueAttribute = attribute + "-value";
+    const attrQuery = "[" + [...attributes2, valueAttribute].join("],[") + "]";
     const keyAttribute = attribute + "-key";
-    const items = Array.from(context.element.querySelectorAll(":scope > [" + keyAttribute + "]"));
+    const items = Array.from(context.element.childNodes).filter((node) => getItemKey(node, keyAttribute) != null);
     const usedItems = /* @__PURE__ */ new Set();
     let cursor = 0;
     context.list = context.value;
@@ -1205,19 +1295,19 @@
       }
       const newTemplate = this.findTemplate(context.templates, value);
       let reusableItem;
-      if (item.getAttribute(keyAttribute) === key) {
+      if (getItemKey(item, keyAttribute) === key) {
         reusableItem = item;
       } else {
         reusableItem = findItemByKey(items, usedItems, key, keyAttribute) || findReusableItem(items, usedItems, value, newTemplate, cursor);
       }
       if (reusableItem) {
-        if (newTemplate != reusableItem[DEP.TEMPLATE]) {
+        if (newTemplate !== reusableItem[DEP.TEMPLATE] || context.refreshTemplate && newTemplate === context.refreshTemplate) {
           context.element.replaceChild(this.applyTemplate(context), reusableItem);
         } else {
           if (reusableItem !== item) {
             context.element.insertBefore(reusableItem, item);
           }
-          updateItemKey(reusableItem, key, context.path, keyAttribute, attributes2, attrQuery);
+          updateItemKey(reusableItem, key, context.path, keyAttribute, attributes2, attrQuery, valueAttribute);
           reusableItem[DEP.VALUE] = value;
         }
         usedItems.add(reusableItem);
@@ -1237,18 +1327,18 @@
   function findItemByKey(items, usedItems, key, keyAttribute) {
     const stringKey = "" + key;
     for (let item of items) {
-      if (!usedItems.has(item) && item.getAttribute(keyAttribute) === stringKey) {
+      if (!usedItems.has(item) && getItemKey(item, keyAttribute) === stringKey) {
         return item;
       }
     }
   }
   function fieldByTemplates(context) {
-    const rendered = context.element.querySelector(":scope > :not(template)");
+    const rendered = Array.from(context.element.childNodes).find((node) => node[DEP.TEMPLATE] || node.nodeType === Node.ELEMENT_NODE && node.tagName !== "TEMPLATE");
     const template = this.findTemplate(context.templates, context.value);
     context.parent = getParentPath(context.element);
     if (rendered) {
       if (template) {
-        if (rendered?.[DEP.TEMPLATE] != template) {
+        if (rendered[DEP.TEMPLATE] !== template || template === context.refreshTemplate) {
           const clone2 = this.applyTemplate(context);
           context.element.replaceChild(clone2, rendered);
         }
@@ -1493,7 +1583,14 @@
   }
 
   // ../bind/src/dom.mjs
-  var domSignals = /* @__PURE__ */ new WeakMap();
+  var domEffects = /* @__PURE__ */ new WeakMap();
+  function releaseDomBinding(element2, flush) {
+    const effect2 = domEffects.get(element2);
+    if (effect2) {
+      domEffects.delete(element2);
+      destroy(effect2, { flush });
+    }
+  }
   var observers = /* @__PURE__ */ new WeakMap();
   var domSignalHandler = {
     get: (target, property, receiver) => {
@@ -1615,30 +1712,38 @@
     }
   }
   function trackDomList(element2) {
-    const path2 = this.getBindingPath(element2);
-    if (!path2) {
+    if (domEffects.has(element2)) {
+      return getSignal(element2);
+    }
+    if (!this.getBindingPath(element2)) {
       throw new Error("Could not find binding path for element", { cause: element2 });
     }
     const s = signal2(element2, {
       childList: true
     });
-    throttledEffect(() => {
-      const children = Array.from(s.children);
+    const keyAttribute = (this.options.attribute || "data-flow") + "-key";
+    const effect2 = throttledEffect(() => {
+      notifyGet(s, "children");
       untracked(() => {
         batch(() => {
           let key = 0;
+          const path2 = this.getBindingPath(element2);
+          if (!path2) {
+            return;
+          }
           const currentList = getValueByPath(this.options.root, path2);
           const source = currentList.slice();
-          for (const item of children) {
+          for (const item of element2.childNodes) {
             if (item.tagName === "TEMPLATE") {
               continue;
             }
-            if (item.dataset.flowKey) {
-              if (item.dataset.flowKey != key) {
+            const oldKey = getItemKey(item, keyAttribute);
+            if (oldKey != null) {
+              if (oldKey != key) {
                 setValueByPath(
                   this.options.root,
                   path2 + "." + key,
-                  source[item.dataset.flowKey]
+                  source[oldKey]
                 );
               }
               key++;
@@ -1649,21 +1754,20 @@
           }
         });
       });
-    }, 50);
+    }, 50, { schedule: this.scheduleUpdate });
+    domEffects.set(element2, effect2);
     return s;
   }
   function trackDomField(element2, props, valueIsString, stringProperty = "innerHTML", getUpdateValue, context) {
-    if (domSignals.has(element2)) {
+    if (domEffects.has(element2)) {
       return;
     }
-    const path2 = this.getBindingPath(element2);
-    if (!path2) {
+    if (!this.getBindingPath(element2)) {
       throw new Error("Could not find binding path for element", { cause: element2 });
     }
     const s = signal2(element2);
-    domSignals.set(element2, s);
     batch(() => {
-      throttledEffect(() => {
+      const effect2 = throttledEffect(() => {
         let updateValue;
         if (getUpdateValue) {
           for (const prop of props) {
@@ -1676,12 +1780,19 @@
           }
         }
         untracked(() => {
+          const path2 = this.getBindingPath(element2);
+          if (!path2) {
+            return;
+          }
           const currentValue = getValueByPath(this.options.root, path2);
           if (getUpdateValue) {
             updateValue = getUpdateValue.call(this, s, currentValue);
           }
           if (typeof updateValue === "undefined") {
             return;
+          }
+          if (context) {
+            context.path = path2;
           }
           updateValue = this.extractValue?.(context, updateValue, currentValue) ?? updateValue;
           if (typeof updateValue === "undefined") {
@@ -1692,7 +1803,8 @@
           }
           setValueByPath(this.options.root, path2, updateValue, { replace: context?.replaceValue });
         });
-      }, 50);
+      }, 50, { schedule: this.scheduleUpdate });
+      domEffects.set(element2, effect2);
     });
     return s;
   }
@@ -1808,12 +1920,16 @@
 
   // ../bind/src/index.mjs
   var SimplyBind = class {
+    #pendingUpdates = 0;
+    #idleWaiters = [];
+    #idleTimer = null;
     /**
      * @param Object options - a set of options for this instance, options may include:
      *  - root (signal) (required) - the root data object that contains al signals that can be bound
      *  - container (HTMLElement) - the dom element to use as the root for all bindings
      *  - attribute (string) - the prefix for the field, edit, list and map attributes, e.g. 'data-bind'
      *  - transformers (object name:function) - a map of transformer names and functions
+     *  - app (object) - optional owning app, available as this.app in transformers
      *  - render (object with field, list and map properties); edit uses field renderers
      */
     constructor(options) {
@@ -1849,6 +1965,7 @@
       if (!options?.root) {
         throw new Error("bind needs at least options.root set");
       }
+      this.app = options.app;
       this.options = Object.assign({}, defaultOptions, options);
       if (options.transformers) {
         this.options.transformers = Object.assign({}, defaultTransformers, options?.transformers);
@@ -1864,28 +1981,25 @@
         }
         return foundAttribute;
       };
-      const renderElement = (el) => {
+      const renderElement = (el, refreshTemplate) => {
         this.bindings.set(el, throttledEffect(() => {
           if (!el.isConnected) {
-            untrack(el, this.getBindingPath(el));
-            const binding = this.bindings.get(el);
-            if (binding) {
-              destroy(binding);
-              this.bindings.delete(el);
-            }
+            this.releaseBinding(el);
             return;
           }
           let context = {
-            templates: el.querySelectorAll(":scope > template"),
-            attribute: getBindingAttribute(el)
+            templates: Array.from(el.children).filter((child) => child.localName === "template"),
+            attribute: getBindingAttribute(el),
+            refreshTemplate
           };
+          refreshTemplate = void 0;
           context.edit = context.attribute === this.options.attribute + "-edit";
           context.path = this.getBindingPath(el);
           context.value = getValueByPath(this.options.root, context.path);
           context.element = el;
           track(el, context);
           runTransformers(context);
-        }, 50));
+        }, 50, { schedule: this.scheduleUpdate }));
       };
       const runTransformers = (context) => {
         let transformers;
@@ -1907,6 +2021,47 @@
         transformers.push(...this.getNamedTransformers(context.element).map((transformer) => getTransformerPhase(transformer, "render")).filter(Boolean));
         runTransformerStack.call(this, transformers, context);
       };
+      this.rerender = (element2, template) => {
+        if (!template || !this.observer || !this.options.container.contains(element2)) {
+          return false;
+        }
+        const standalone = element2[DEP.TEMPLATE] === template && element2[DEP.RERENDER];
+        const roots = standalone ? [element2] : Array.from(element2.childNodes).filter((child) => child[DEP.TEMPLATE] === template);
+        if (!roots.length || roots.some((root) => root.contains(root.ownerDocument.activeElement))) {
+          return false;
+        }
+        if (standalone) {
+          standalone();
+        } else {
+          const previous = this.bindings.get(element2);
+          if (!previous) {
+            return false;
+          }
+          renderElement(element2, template);
+          destroy(previous);
+        }
+        for (const node of this.bindings.keys()) {
+          if (!node.isConnected && roots.some((root) => root.contains(node))) {
+            this.releaseBinding(node, true);
+          }
+        }
+        return true;
+      };
+      const selector = bindAttributes.map((name) => `[${name}]`).join(",");
+      this.rebindListItem = (item) => {
+        queueMicrotask(() => {
+          if (!this.observer || !this.options.container.contains(item)) {
+            return;
+          }
+          for (const node of [item, ...item.querySelectorAll(selector)]) {
+            const previous = this.bindings.get(node);
+            if (previous) {
+              renderElement(node);
+              destroy(previous);
+            }
+          }
+        });
+      };
       const applyBindings = (bindings2) => {
         for (let bindingEl of bindings2) {
           if (!this.bindings.get(bindingEl)) {
@@ -1915,7 +2070,6 @@
         }
       };
       const updateBindings = (changes) => {
-        const selector = `[${attribute}-field],[${attribute}-edit],[${attribute}-list],[${attribute}-map]`;
         for (const change of changes) {
           if (change.type == "childList" && change.addedNodes) {
             for (let node of change.addedNodes) {
@@ -1970,12 +2124,22 @@
         result.innerHTML = "<!-- no matching template -->";
         return result;
       }
-      let clone2 = template.content.cloneNode(true);
-      if (!clone2.children?.length) {
-        return clone2;
+      const content = template.content;
+      const hasRootText = Array.from(content.childNodes).some(
+        (node) => node.nodeType === Node.TEXT_NODE && /[^\t\n\f\r ]/.test(node.data)
+      );
+      if (content.childElementCount > 1 || hasRootText) {
+        throw new Error(
+          "simplyflow/bind: template must be empty or contain a single root element",
+          { cause: template }
+        );
       }
-      if (clone2.children.length > 1) {
-        throw new Error("template must contain a single root node", { cause: template });
+      const clone2 = content.cloneNode(true);
+      let root = clone2.firstElementChild;
+      if (!root) {
+        const params = new URLSearchParams({ "simply-template": template.id });
+        root = template.ownerDocument.createComment(` ${params} `);
+        clone2.replaceChildren(root);
       }
       const attribute = this.options.attribute;
       const attributes2 = [attribute + "-field", attribute + "-edit", attribute + "-list", attribute + "-map"];
@@ -1999,10 +2163,10 @@
       }
       this.applyTemplateCommandValues(clone2, template.links, path2, index);
       if (typeof index !== "undefined") {
-        clone2.children[0].setAttribute(attribute + "-key", index);
+        setItemKey(root, attribute + "-key", index);
       }
-      clone2.children[0][DEP.TEMPLATE] = template;
-      clone2.children[0][DEP.VALUE] = value;
+      root[DEP.TEMPLATE] = template;
+      root[DEP.VALUE] = value;
       return clone2;
     }
     applyTemplateCommandValues(fragment, links, path2, index) {
@@ -2020,6 +2184,9 @@
         if (Object.hasOwn(resolved, "path")) {
           element2.setAttribute(valuePathAttribute, resolved.path);
         } else {
+          if (value === ":key" && index != null) {
+            commandKeyPaths.set(element2, templateItemPath(path2, index));
+          }
           element2.setAttribute(valueAttribute, resolved.value);
           element2.removeAttribute(valuePathAttribute);
         }
@@ -2067,8 +2234,9 @@
       if (!el.hasAttribute(transformAttribute)) {
         return [];
       }
+      const appTransformers = this.app?.transformers;
       return el.getAttribute(transformAttribute).split(" ").filter(Boolean).map((name) => {
-        const transformer = this.options.transformers[name];
+        const transformer = appTransformers && Object.hasOwn(appTransformers, name) ? appTransformers[name] : this.options.transformers[name];
         if (!transformer) {
           console.warn("No transformer with name " + name + " configured", { cause: el });
           return null;
@@ -2134,7 +2302,8 @@
       }
       let rel = template?.getAttribute("rel");
       if (rel) {
-        let replacement = document.querySelector("template#" + rel);
+        const container = this.options.container;
+        const replacement = container.querySelector("template#" + CSS.escape(rel));
         if (!replacement) {
           throw new Error("Could not find template with id " + rel);
         }
@@ -2145,13 +2314,67 @@
       }
       return template;
     }
-    destroy() {
-      this.bindings.forEach((binding, element2) => {
+    scheduleUpdate = (run, delay) => {
+      this.#pendingUpdates++;
+      const finish = () => {
+        this.#pendingUpdates--;
+        this.#checkIdle();
+      };
+      const timer = setTimeout(() => {
+        try {
+          run();
+        } finally {
+          finish();
+        }
+      }, delay);
+      return () => {
+        clearTimeout(timer);
+        finish();
+      };
+    };
+    whenIdle() {
+      if (!this.observer) {
+        return Promise.resolve();
+      }
+      return new Promise((resolve) => {
+        this.#idleWaiters.push(resolve);
+        this.#checkIdle();
+      });
+    }
+    #checkIdle() {
+      if (this.#pendingUpdates || !this.#idleWaiters.length || this.#idleTimer !== null) {
+        return;
+      }
+      this.#idleTimer = setTimeout(() => {
+        this.#idleTimer = null;
+        if (!this.#pendingUpdates) {
+          this.#resolveIdleWaiters();
+        }
+      }, 0);
+    }
+    #resolveIdleWaiters() {
+      for (const resolve of this.#idleWaiters.splice(0)) {
+        resolve();
+      }
+    }
+    releaseBinding(element2, flush = false) {
+      const binding = this.bindings.get(element2);
+      if (binding) {
+        this.bindings.delete(element2);
         untrack(element2, this.getBindingPath(element2));
         destroy(binding);
-      });
-      this.bindings = /* @__PURE__ */ new Map();
-      this.observer.disconnect();
+        releaseDomBinding(element2, flush);
+      }
+    }
+    destroy() {
+      for (const element2 of this.bindings.keys()) {
+        this.releaseBinding(element2);
+      }
+      this.observer?.disconnect();
+      this.observer = null;
+      clearTimeout(this.#idleTimer);
+      this.#idleTimer = null;
+      this.#resolveIdleWaiters();
     }
   };
   function bind(options) {
@@ -2263,6 +2486,7 @@
     scroll: () => scroll,
     sort: () => sort
   });
+  var destroyedModels = /* @__PURE__ */ new WeakSet();
   var SimplyFlowModel = class {
     /**
      * Creates a new datamodel, with a state property that contains
@@ -2281,10 +2505,8 @@
       if (!this.state.options) {
         this.state.options = {};
       }
-      this.effects = [{ current: this.state.data }];
-      this.view = {
-        current: this.state.data
-      };
+      this.view = effect(() => this.state.data);
+      this.effects = [this.view];
     }
     /**
      * Adds an effect to run whenever a signal it depends on
@@ -2296,6 +2518,9 @@
      * list. And the last effect added is set as this.view
      */
     addEffect(fn) {
+      if (destroyedModels.has(raw(this))) {
+        throw new Error("simplyflow/model: cannot add an effect to a destroyed model");
+      }
       if (!fn || typeof fn !== "function") {
         throw new Error("addEffect requires an effect function as its parameter", { cause: fn });
       }
@@ -2306,6 +2531,15 @@
       }
       this.view = connectedSignal;
       this.effects.push(this.view);
+    }
+    destroy() {
+      if (destroyedModels.has(raw(this))) {
+        return;
+      }
+      destroyedModels.add(raw(this));
+      for (const output of this.effects.toReversed()) {
+        destroy(output);
+      }
     }
   };
   function model(options) {
@@ -2487,31 +2721,11 @@
 
   // src/render.mjs
   var SimplyRender = class extends HTMLElement {
-    constructor() {
-      super();
-    }
     connectedCallback() {
       let templateId = this.getAttribute("rel");
       let template = document.getElementById(templateId);
       if (template) {
-        let content = template.content.cloneNode(true);
-        for (const node of content.childNodes) {
-          const clone2 = node.cloneNode(true);
-          if (clone2.nodeType == document.ELEMENT_NODE) {
-            clone2.querySelectorAll("template").forEach(function(t) {
-              t.setAttribute("simply-render", "");
-            });
-            if (this.attributes) {
-              for (const attr of this.attributes) {
-                if (attr.name != "rel") {
-                  clone2.setAttribute(attr.name, attr.value);
-                }
-              }
-            }
-          }
-          this.parentNode.insertBefore(clone2, this);
-        }
-        this.parentNode.removeChild(this);
+        this.render(template, this);
       } else {
         const observe = () => {
           const observer = new MutationObserver(() => {
@@ -2528,6 +2742,31 @@
         };
         observe();
       }
+    }
+    render(template, previous) {
+      const content = template.content;
+      const hasRootText = Array.from(content.childNodes).some(
+        (node) => node.nodeType === Node.TEXT_NODE && /[^\t\n\f\r ]/.test(node.data)
+      );
+      if (content.childElementCount !== 1 || hasRootText) {
+        throw new Error(
+          `simplyflow/render: template "${template.id}" must contain a single root element`,
+          { cause: template }
+        );
+      }
+      const root = content.firstElementChild.cloneNode(true);
+      for (const nested of root.querySelectorAll("template")) {
+        nested.setAttribute("simply-render", "");
+      }
+      for (const attr of this.attributes) {
+        if (attr.name !== "rel") {
+          root.setAttribute(attr.name, attr.value);
+        }
+      }
+      root.setAttribute("data-simply-template", template.id);
+      root[DEP.TEMPLATE] = template;
+      root[DEP.RERENDER] = () => this.render(template, root);
+      previous.replaceWith(root);
     }
   };
   if (!customElements.get("simply-render")) {
@@ -2982,20 +3221,19 @@
         options.app.container = document.body;
       }
       this.app = options.app;
-      this.$handlers = options.handlers || defaultHandlers;
-      if (options.commands) {
-        Object.assign(this, options.commands);
-      }
+      this.$handlers = options.handlers || [...defaultHandlers];
+      Object.defineProperties(this, Object.getOwnPropertyDescriptors(options.commands || {}));
       const commandHandler = (evt) => {
         const command = getCommand(evt, this.$handlers, this.app);
         if (!command) {
           return;
         }
-        if (!this[command.name]) {
+        const handler = Object.hasOwn(this, command.name) ? this[command.name] : void 0;
+        if (typeof handler !== "function") {
           warnUnknownCommand(this, command.name, command.source);
           return;
         }
-        const shouldContinue = this[command.name].call(options.app, command.source, command.value, evt);
+        const shouldContinue = handler.call(options.app, command.source, command.value, evt);
         if (shouldContinue !== true) {
           evt.preventDefault();
           evt.stopPropagation();
@@ -3237,7 +3475,7 @@
       if (!options.app.container) {
         options.app.container = document.body;
       }
-      Object.assign(this, options.shortcuts);
+      Object.defineProperties(this, Object.getOwnPropertyDescriptors(options.shortcuts || {}));
       const keyHandler = (e) => {
         let shortcutScopes = [];
         let shortcutElement = e.target.closest("[data-simply-shortcuts]");
@@ -3506,6 +3744,7 @@
     listen("dragstart", (event) => {
       const source = event.target.closest?.(sourceSelector);
       if (!source || !container.contains(source) || !event.dataTransfer) return;
+      if (!Object.hasOwn(drags, source.dataset.simplyDrag)) return;
       cancel();
       try {
         const description = describe(source, event);
@@ -3543,6 +3782,7 @@
       const handle = event.target.closest?.(handleSelector);
       const source = handle?.closest(sourceSelector);
       if (!source || !container.contains(source)) return;
+      if (!Object.hasOwn(drags, source.dataset.simplyDrag)) return;
       handle.setPointerCapture(event.pointerId);
       touch = { handle, source, id: event.pointerId, x: event.clientX, y: event.clientY };
     });
@@ -3887,6 +4127,192 @@
     links: (links) => defaultInclude().includeLinks(Array.from(links))
   };
 
+  // ../app/src/composition.mjs
+  function* componentDefinitions(components) {
+    for (const name of Object.keys(components)) {
+      if (name === "app") {
+        throw new Error('simplyflow/app: component name "app" is reserved for the top-level app definition');
+      }
+      const definition = components[name];
+      if (!definition) {
+        continue;
+      }
+      if (definition.components) {
+        yield* componentDefinitions(definition.components);
+      }
+      yield [name, definition];
+    }
+  }
+  function isRecord(value) {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === null || prototype === Object.prototype;
+  }
+  var registryKey = Symbol.for("@muze-labs/simplyflow.mergeableMaps");
+  var markedMaps = globalThis[registryKey] ??= /* @__PURE__ */ new WeakSet();
+  var sections = /* @__PURE__ */ new Set([
+    "actions",
+    "behaviors",
+    "commands",
+    "drags",
+    "drops",
+    "routes",
+    "shortcuts",
+    "styles",
+    "templates",
+    "transformers"
+  ]);
+  var groupedSections = /* @__PURE__ */ new Set(["drops", "shortcuts", "transformers"]);
+  function mergeable(object) {
+    if (!isRecord(object)) {
+      throw new TypeError("simplyflow/app: mergeable() expects an object literal or a null-prototype map");
+    }
+    mapDescriptors(object);
+    markedMaps.add(object);
+    return object;
+  }
+  function childShape(shape, key) {
+    if (shape === "app" && sections.has(key)) {
+      return groupedSections.has(key) ? "groups" : "map";
+    }
+    if (shape === "groups") {
+      return "map";
+    }
+  }
+  function composes(value, shape) {
+    return markedMaps.has(value) || shape && isRecord(value);
+  }
+  function mapDescriptors(source) {
+    const descriptors = Object.getOwnPropertyDescriptors(source);
+    for (const key of Reflect.ownKeys(descriptors)) {
+      if (!descriptors[key].configurable) {
+        throw new TypeError(`simplyflow/app: cannot compose non-configurable property "${String(key)}" in an editable map`);
+      }
+    }
+    return descriptors;
+  }
+  function mergeDescriptor(previous, next, shape, seen = /* @__PURE__ */ new WeakMap()) {
+    if (!composes(previous?.value, shape) || !composes(next.value, shape) || previous.value === next.value) {
+      return next;
+    }
+    const earlier = previous.value;
+    const later = next.value;
+    let pairs = seen.get(earlier);
+    if (!pairs) {
+      pairs = /* @__PURE__ */ new WeakMap();
+      seen.set(earlier, pairs);
+    }
+    if (pairs.has(later)) {
+      return { ...next, value: pairs.get(later) };
+    }
+    const merged = Object.create(Object.getPrototypeOf(later), mapDescriptors(earlier));
+    pairs.set(later, merged);
+    markedMaps.add(merged);
+    const entries = mapDescriptors(later);
+    for (const key of Reflect.ownKeys(entries)) {
+      const previous2 = Object.getOwnPropertyDescriptor(merged, key);
+      Object.defineProperty(
+        merged,
+        key,
+        mergeDescriptor(previous2, entries[key], childShape(shape, key), seen)
+      );
+    }
+    return { ...next, value: merged };
+  }
+  function dataProperty(value) {
+    return { value, enumerable: true, writable: true, configurable: true };
+  }
+  function cloneComponentData(source) {
+    const copy = structuredClone(source);
+    function markDataMap(original, cloned) {
+      if (markedMaps.has(cloned)) {
+        return;
+      }
+      markedMaps.add(cloned);
+      for (const key of Object.keys(cloned)) {
+        const child = Object.getOwnPropertyDescriptor(original, key)?.value;
+        if (markedMaps.has(child)) {
+          markDataMap(child, cloned[key]);
+        }
+      }
+    }
+    if (isRecord(source)) {
+      markDataMap(source, copy);
+    }
+    return copy;
+  }
+  function copyMap(source, shape, seen = /* @__PURE__ */ new WeakMap()) {
+    if (seen.has(source)) {
+      return seen.get(source);
+    }
+    const copy = Object.create(Object.getPrototypeOf(source));
+    seen.set(source, copy);
+    const descriptors = mapDescriptors(source);
+    for (const key of Reflect.ownKeys(descriptors)) {
+      const descriptor = descriptors[key];
+      const nestedShape = childShape(shape, key);
+      if (composes(descriptor.value, nestedShape)) {
+        descriptor.value = copyMap(descriptor.value, nestedShape, seen);
+      }
+    }
+    seen.delete(source);
+    return Object.defineProperties(copy, descriptors);
+  }
+  function composeApp(definition) {
+    const { data, components: suppliedComponents } = definition;
+    const authored = Object.getOwnPropertyDescriptors(definition);
+    delete authored.data;
+    const components = { ...suppliedComponents };
+    if (suppliedComponents != null) {
+      authored.components = dataProperty({ ...components });
+    } else {
+      delete authored.components;
+    }
+    const appDefinition = Object.create(Object.getPrototypeOf(definition), authored);
+    const definitions = [...componentDefinitions(components), ["app", appDefinition]];
+    const descriptors = /* @__PURE__ */ Object.create(null);
+    let initialData;
+    for (const [name, source] of definitions) {
+      if (!Object.hasOwn(components, name)) {
+        Object.defineProperty(components, name, dataProperty(source));
+      }
+      if (Object.hasOwn(source, "data")) {
+        const defaults = source.data;
+        if (defaults != null) {
+          initialData = mergeDescriptor(
+            initialData,
+            dataProperty(cloneComponentData(defaults)),
+            "map"
+          );
+        }
+      }
+      for (const key of Reflect.ownKeys(source)) {
+        if (["components", "data", "__proto__", "prototype"].includes(key) || name !== "app" && ["start", "destroy", "onError"].includes(key)) {
+          continue;
+        }
+        const entry = Object.getOwnPropertyDescriptor(source, key);
+        if (entry.value === null && suppliedComponents || sections.has(key) && "value" in entry && entry.value == null) {
+          continue;
+        }
+        descriptors[key] = mergeDescriptor(descriptors[key], entry, childShape("app", key));
+      }
+    }
+    for (const section of sections) {
+      descriptors[section] ??= dataProperty(/* @__PURE__ */ Object.create(null));
+    }
+    const container = descriptors.container;
+    if (!container || "value" in container && !container.value) {
+      descriptors.container = dataProperty(document.body);
+    }
+    if (data != null) {
+      initialData = mergeDescriptor(initialData, dataProperty(data), "map");
+    }
+    const options = copyMap(Object.create(null, descriptors), "app");
+    return { data: initialData?.value, options, components };
+  }
+
   // ../app/src/index.mjs
   var APP_OPTIONS = [
     "container",
@@ -3895,6 +4321,7 @@
     "templates",
     "styles",
     "start",
+    "destroy",
     "onError",
     "components",
     "behaviors",
@@ -3907,139 +4334,117 @@
     "actions",
     "transformers"
   ];
+  var runtimeProperties = /* @__PURE__ */ new Set([
+    "commands",
+    "actions",
+    "shortcuts",
+    "routes",
+    "behaviors",
+    "binding",
+    "dragdrop",
+    "includes",
+    "accesskeys",
+    "destroy"
+  ]);
   var SimplyApp = class {
-    constructor(options = {}) {
-      if (options.components) {
-        const mergedOptions = {};
-        mergeComponents(mergedOptions, options.components);
-        mergeOptions(mergedOptions, options);
-        options = mergedOptions;
-      }
-      this.container = options.container || document.body;
+    constructor(definition = {}) {
+      const { data, options, components } = composeApp(definition);
+      const app2 = this;
+      const { container } = options;
+      this.data = signal(data || {});
+      this.components = components;
       this.destroyed = false;
-      this.data = signal(options.data || {});
-      this.start = options.start;
-      this.onError = options.onError;
-      this.components = options.components;
-      this.baseURL = options.baseURL;
-      this.transformers = options.transformers;
-      installTemplates(this.container, options.templates);
-      installStyles(this.container, options.styles);
-      for (const key of Object.keys(options)) {
-        switch (key) {
-          case "container":
-          case "data":
-          case "attribute":
-          case "templates":
-          case "styles":
-          case "start":
-          case "onError":
-          case "components":
-          case "baseURL":
-          case "transformers":
-            break;
-          case "commands":
-            this.commands = commands({ app: this, container: this.container, commands: options.commands });
-            break;
-          case "shortcuts":
-            this.shortcuts = shortcuts({ app: this, shortcuts: options.shortcuts });
-            break;
-          case "behaviors":
-            this.behaviors = behaviors({ app: this, container: this.container, behaviors: options.behaviors });
-            break;
-          case "routes":
-            this.routes = routes({ app: this, routes: options.routes });
-            break;
-          case "actions":
-            this.actions = actions({ app: this, actions: options.actions });
-            break;
-          case "prototype":
-          case "__proto__":
-            break;
-          default:
-            warnLikelyOptionTypo(key);
-            this[key] = options[key];
-            break;
+      for (const key of Reflect.ownKeys(options)) {
+        if (runtimeProperties.has(key) || key in this) {
+          continue;
         }
+        if (typeof key === "string" && !APP_OPTIONS.includes(key)) {
+          warnLikelyOptionTypo(key);
+        }
+        Object.defineProperty(this, key, Object.getOwnPropertyDescriptor(options, key));
       }
+      installMarkup(container, options.templates, "template");
+      installMarkup(container, options.styles, "style");
+      this.commands = commands({ app: app2, commands: options.commands });
+      this.actions = actions({ app: app2, actions: options.actions });
+      this.shortcuts = shortcuts({ app: app2, shortcuts: options.shortcuts });
+      this.routes = routes({ app: app2, routes: options.routes });
+      this.behaviors = behaviors({ app: app2, container, behaviors: options.behaviors });
       this.binding = bind({
         root: this.data,
-        container: this.container,
+        container,
         attribute: options.attribute || "data-simply",
-        transformers: this.transformers
+        app: app2
       });
-      if (options.drags || options.drops) {
-        this.dragdrop = dragdrop({ app: this, drags: options.drags, drops: options.drops });
-      }
-      this.includes = includes({ container: this.container });
-      this.accesskeys = accesskeys({ app: this, container: this.container });
+      this.dragdrop = dragdrop({ app: app2, drags: options.drags, drops: options.drops });
+      this.includes = includes({ container });
+      this.accesskeys = accesskeys({ app: app2, container });
+      const {
+        binding,
+        commands: commandApi,
+        shortcuts: shortcutApi,
+        accesskeys: keys,
+        routes: router,
+        behaviors: behaviorApi,
+        dragdrop: dragApi,
+        includes: includeApi
+      } = this;
+      this.destroy = () => {
+        if (this.destroyed) return;
+        this.destroyed = true;
+        const dispose = [
+          () => {
+            const destroy2 = options.destroy;
+            if (typeof destroy2 === "function") {
+              destroy2.call(this);
+            }
+          },
+          () => dragApi.destroy(),
+          () => binding.destroy(),
+          () => destroyCommands(commandApi),
+          () => destroyShortcuts(shortcutApi),
+          () => destroyAccesskeys(keys),
+          () => router.destroy(),
+          () => behaviorApi.destroy(),
+          () => includeApi.destroy()
+        ];
+        const errors = [];
+        for (const cleanup of dispose) {
+          try {
+            cleanup();
+          } catch (error) {
+            errors.push(error);
+          }
+        }
+        this.binding = void 0;
+        this.routes = void 0;
+        this.behaviors = void 0;
+        this.includes = void 0;
+        this.accesskeys = void 0;
+        if (errors.length === 1) throw errors[0];
+        if (errors.length > 1) {
+          throw new AggregateError(errors, "simplyflow/app: multiple cleanups failed");
+        }
+      };
     }
     get app() {
       return this;
     }
-    destroy() {
-      this.destroyed = true;
-      if (this.dragdrop) {
-        this.dragdrop.destroy();
-      }
-      if (this.binding) {
-        this.binding.destroy();
-        this.binding = void 0;
-      }
-      if (this.commands) {
-        destroyCommands(this.commands);
-      }
-      if (this.shortcuts) {
-        destroyShortcuts(this.shortcuts);
-      }
-      if (this.accesskeys) {
-        destroyAccesskeys(this.accesskeys);
-        this.accesskeys = void 0;
-      }
-      if (this.routes) {
-        this.routes.destroy();
-        this.routes = void 0;
-      }
-      if (this.behaviors) {
-        this.behaviors.destroy();
-        this.behaviors = void 0;
-      }
-      if (this.includes) {
-        this.includes.destroy();
-        this.includes = void 0;
-      }
-    }
   };
-  function installTemplates(container, templates) {
-    if (!templates) {
-      return;
-    }
-    for (const name of Object.keys(templates)) {
-      const element2 = document.createElement("div");
-      element2.innerHTML = templates[name];
-      let template = container.querySelector("template#" + name);
-      if (!template) {
-        template = document.createElement("template");
-        template.id = name;
-        template.content.append(...element2.children);
-        container.appendChild(template);
+  function installMarkup(container, definitions, tag) {
+    for (const name of Object.keys(definitions)) {
+      const id = tag === "style" ? name + ".css" : name;
+      let node = Array.from(container.querySelectorAll(tag)).find((node2) => node2.id === id);
+      if (!node) {
+        node = document.createElement(tag);
+        node.id = id;
+        container.appendChild(node);
+      }
+      if (tag === "template") {
+        node.innerHTML = definitions[name];
       } else {
-        template.content.replaceChildren(...element2.children);
+        node.textContent = definitions[name];
       }
-    }
-  }
-  function installStyles(container, styles) {
-    if (!styles) {
-      return;
-    }
-    for (const name of Object.keys(styles)) {
-      let style = container.querySelector("style#" + name + ".css");
-      if (!style) {
-        style = document.createElement("style");
-        style.id = name + ".css";
-        container.appendChild(style);
-      }
-      style.innerHTML = styles[name];
     }
   }
   function warnLikelyOptionTypo(key) {
@@ -4052,19 +4457,20 @@
     if (app2.destroyed) {
       return;
     }
-    if (app2.routes) {
+    const router = app2.routes;
+    if (typeof router?.handleEvents === "function") {
       if (app2.baseURL) {
-        app2.routes.init({ baseURL: app2.baseURL });
+        router.init({ baseURL: app2.baseURL });
       }
-      app2.routes.handleEvents();
+      router.handleEvents();
       globalThis.setTimeout(() => {
-        if (app2.destroyed || !app2.routes) {
+        if (app2.destroyed || app2.routes !== router) {
           return;
         }
-        if (app2.routes.has(globalThis.location?.hash)) {
-          app2.routes.match(globalThis.location.hash);
+        if (router.has(globalThis.location?.hash)) {
+          router.match(globalThis.location.hash);
         } else {
-          app2.routes.match(globalThis.location?.pathname + globalThis.location?.hash);
+          router.match(globalThis.location?.pathname + globalThis.location?.hash);
         }
       });
     }
@@ -4092,51 +4498,6 @@
       handleAppError(app2, error, app2.start);
     }
     return app2;
-  }
-  function mergeOptions(options, otherOptions) {
-    for (const key of Object.keys(otherOptions)) {
-      switch (typeof otherOptions[key]) {
-        case "object":
-          if (!otherOptions[key]) {
-            continue;
-          }
-          if (!options[key]) {
-            options[key] = otherOptions[key];
-          } else {
-            mergeOptions(options[key], otherOptions[key]);
-          }
-          break;
-        default:
-          options[key] = otherOptions[key];
-      }
-    }
-  }
-  function mergeComponents(options, components) {
-    for (const name of Object.keys(components)) {
-      const component = components[name];
-      if (component.components) {
-        mergeComponents(options, component.components);
-      }
-      if (!options.components) {
-        options.components = {};
-      }
-      options.components[name] = component;
-      for (const key of Object.keys(component)) {
-        switch (key) {
-          case "start":
-          case "onError":
-          // App lifecycle functions are app-level behavior, not merged component state.
-          case "components":
-            break;
-          default:
-            if (!options[key]) {
-              options[key] = /* @__PURE__ */ Object.create(null);
-            }
-            mergeOptions(options[key], component[key]);
-            break;
-        }
-      }
-    }
   }
 
   // ../app/src/highlight.mjs
@@ -4166,6 +4527,7 @@
   });
   Object.assign(globalThis.simply, {
     app,
+    mergeable,
     bind,
     model: modelApi,
     state: src_exports,

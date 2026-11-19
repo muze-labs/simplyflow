@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./src/index.mjs",
   "scripts": {
-    "build": "esbuild src/index.mjs --bundle --format=esm --outfile=dist/simply.edit.min.js --minify --sourcemap",
+    "build": "npm run build-dev && esbuild src/index.mjs --bundle --format=esm --outfile=dist/simply.edit.min.js --minify --sourcemap",
     "build-dev": "esbuild src/index.mjs --bundle --format=esm --outfile=dist/simply.edit.js"
   },
   "exports": {
@@ -19,8 +19,8 @@
     "./sortable-list": "./src/sortable-list.mjs"
   },
   "dependencies": {
-    "@muze-labs/simplyflow-app": "0.10.4",
-    "@muze-labs/simplyflow-state": "0.10.2"
+    "@muze-labs/simplyflow-app": "0.10.5",
+    "@muze-labs/simplyflow-state": "0.10.3"
   },
   "sideEffects": false,
   "files": [
