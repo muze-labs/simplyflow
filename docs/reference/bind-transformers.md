@@ -23,7 +23,10 @@ function transformer(context, next) {
 }
 ```
 
-Transformers are called with `this` set to the binding instance.
+Transformers are called with `this` set to the binding instance. Named
+transformers in an app binding also receive the owning app as a third argument
+on render and extract. For example, `render(context, next, app)` can read
+`app.api`. Standalone bindings call hooks with the two arguments shown above.
 
 ## Render and extract transformer signature
 

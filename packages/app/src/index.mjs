@@ -7,6 +7,7 @@ import { shortcuts, destroyShortcuts, accesskeys, destroyAccesskeys } from './sh
 import { dragdrop } from './dragdrop.mjs'
 import { behaviors } from './behavior.mjs'
 import { includes } from './include.mjs'
+import { composeApp } from './composition.mjs'
 import { closest } from './suggest.mjs'
 
 const APP_OPTIONS = [
@@ -31,24 +32,17 @@ const APP_OPTIONS = [
 
 class SimplyApp
 {
-    constructor(options={})
+    constructor(definition={})
     {
-        if (options.components) {
-            const mergedOptions = {}
-            mergeComponents(mergedOptions, options.components)
-            mergeOptions(mergedOptions, options) // app options override component options
-            options = mergedOptions
-        }
-
-
+        const { options, components, transformers } = composeApp(definition)
         this.container = options.container || document.body
         this.destroyed = false
         this.data = signal(options.data || {})
         this.start = options.start
         this.onError = options.onError
-        this.components = options.components
+        this.components = components
         this.baseURL = options.baseURL
-        this.transformers = options.transformers
+        this.transformers = transformers
 
         installTemplates(this.container, options.templates)
         installStyles(this.container, options.styles)
@@ -98,7 +92,7 @@ class SimplyApp
             root: this.data,
             container: this.container,
             attribute: options.attribute || 'data-simply',
-            transformers: this.transformers
+            transformerApp: this
         })
 
         if (options.drags || options.drops) {
@@ -245,54 +239,4 @@ export function app(options={})
         handleAppError(app, error, app.start)
     }
     return app
-}
-
-
-function mergeOptions(options, otherOptions)
-{
-    for (const key of Object.keys(otherOptions)) {
-        switch(typeof otherOptions[key]) {
-            case 'object':
-                if (!otherOptions[key]) {
-                    continue // null
-                }
-                if (!options[key]) {
-                    options[key] = otherOptions[key]
-                } else {
-                    mergeOptions(options[key], otherOptions[key])
-                }
-                break
-            default:
-                options[key] = otherOptions[key]
-        }
-    }
-}
-
-function mergeComponents(options, components) {
-    for (const name of Object.keys(components)) {
-        const component = components[name]
-        if (component.components) {
-            mergeComponents(options, component.components)
-        }
-        if (!options.components) {
-            options.components = {}
-        }
-        options.components[name] = component
-        for (const key of Object.keys(component)) {
-            switch(key) {
-                case 'start':
-                case 'onError':
-                    // App lifecycle functions are app-level behavior, not merged component state.
-                case 'components':
-                    // already handled
-                    break
-                default:
-                    if (!options[key]) {
-                        options[key] = Object.create(null)
-                    }
-                    mergeOptions(options[key], component[key])
-                    break
-            }
-        }
-    }
 }

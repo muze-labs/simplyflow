@@ -18,6 +18,7 @@ class SimplyBind
      *  - container (HTMLElement) - the dom element to use as the root for all bindings
      *  - attribute (string) - the prefix for the field, edit, list and map attributes, e.g. 'data-bind'
      *  - transformers (object name:function) - a map of transformer names and functions
+     *  - transformerApp (object) - optional owning app passed to named transformers
      *  - render (object with field, list and map properties); edit uses field renderers
      */
     constructor(options)
@@ -130,7 +131,9 @@ class SimplyBind
                     break
             }
             transformers.push(...this.getNamedTransformers(context.element)
-                .map(transformer => getTransformerPhase(transformer, 'render'))
+                .map(transformer =>
+                    getTransformerPhase(transformer, 'render', this.options.transformerApp)
+                )
                 .filter(Boolean))
             runTransformerStack.call(this, transformers, context)
         }
@@ -332,11 +335,14 @@ class SimplyBind
         if (!el.hasAttribute(transformAttribute)) {
             return []
         }
+        const appTransformers = this.options.transformerApp?.transformers
         return el.getAttribute(transformAttribute)
             .split(' ')
             .filter(Boolean)
             .map(name => {
-                const transformer = this.options.transformers[name]
+                const transformer = appTransformers && Object.hasOwn(appTransformers, name)
+                    ? appTransformers[name]
+                    : this.options.transformers[name]
                 if (!transformer) {
                     console.warn('No transformer with name '+name+' configured', {cause: el})
                     return null
@@ -352,7 +358,9 @@ class SimplyBind
             return value
         }
         const transformers = this.getNamedTransformers(context.element)
-            .map(transformer => getTransformerPhase(transformer, 'extract'))
+            .map(transformer =>
+                getTransformerPhase(transformer, 'extract', this.options.transformerApp)
+            )
             .filter(Boolean)
             .reverse()
         if (!transformers.length) {
@@ -447,15 +455,20 @@ export function bind(options)
     return new SimplyBind(options)
 }
 
-function getTransformerPhase(transformer, phase)
+function getTransformerPhase(transformer, phase, app)
 {
-    if (typeof transformer === 'function') {
-        return phase === 'render' ? transformer : null
+    const hook = typeof transformer === 'function'
+        ? (phase === 'render' ? transformer : null)
+        : transformer?.[phase]
+    if (typeof hook !== 'function') {
+        return null
     }
-    if (transformer && typeof transformer[phase] === 'function') {
-        return transformer[phase]
+    if (!app) {
+        return hook
     }
-    return null
+    return function(context, next) {
+        return hook.call(this, context, next, app)
+    }
 }
 
 function runTransformerStack(transformers, context)

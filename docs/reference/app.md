@@ -98,12 +98,43 @@ The returned app object contains:
 | `app.shortcuts` | Shortcut controller, when shortcuts are configured. |
 | `app.behaviors` | Behavior controller, when behaviors are configured. |
 | `app.includes` | Include controller. Created automatically for the app container. |
-| `app.transformers` | Transformer map passed to the default binding. |
+| `app.components` | Source component definitions, including the top-level app definition. |
+| `app.transformers` | The app’s merged, editable map of named binding transformers. |
 | `app.binding` | Lower-level binding controller. |
 | `app.destroyed` | `true` after `app.destroy()` is called. |
 
 The app object is also available as `this` inside commands, actions, behaviors, route functions and lifecycle functions.
 
+
+## Component definitions and live edits
+
+SimplyFlow merges nested components before their parent, siblings in declaration
+order, and the top-level app definition last. Top-level startup and error handling
+keep their usual lifecycle. Inspect a component through its original hierarchy.
+A nested name is also available directly on `app.components` when the name is free.
+
+The top-level definition is available as `app.components.app`. If a supplied
+component already occupies that name, it keeps it and the top-level definition
+takes the first free name in `app2`, `app3`, and so on. Apps created
+without a `components` option also have this registry.
+
+```js
+const news = simply.app({
+  components: { editor },
+  transformers: { label: { render: renderNewsLabel } }
+})
+
+news.transformers.label = previewLabel
+// Later, restore the currently authored hooks for this app.
+delete news.transformers.label
+```
+
+If `editor` supplies `label.extract`, the restored transformer has both that
+hook and `renderNewsLabel`. Replacing the named entry temporarily replaces the
+whole transformer. Deleting it merges that name again, including any deliberate
+edits to the source definitions. An entry added only to the running app
+disappears on deletion. Binding uses the result on its next render or extraction.
+This edit and restore behavior applies to named entries in `app.transformers`.
 
 ## Binding transformers
 

@@ -125,6 +125,191 @@ describe('app API', () => {
     testApp.destroy()
   })
 
+  it('uses current named transformers for mounted app bindings', async () => {
+    const fields = `<span data-simply-field="title" data-simply-transform="escape_html label"></span>
+      <input data-simply-edit="value" data-simply-transform="label">`
+    document.body.innerHTML = `<div id="first">${fields}</div><div id="second">${fields}</div>`
+    const first = document.querySelector('#first')
+    const second = document.querySelector('#second')
+    const makeTransformer = (name) => ({
+      render: jest.fn(function(context, next, owner) {
+        if (!context.edit) {
+          context.value = `${owner.api.label} ${name}: ${context.value}`
+        }
+        return next(context)
+      }),
+      extract: jest.fn(function(context, next, owner) {
+        if (context.value !== context.currentValue) {
+          context.value = `${owner.api.label} ${name}: ${context.value}`
+        }
+        return next(context)
+      })
+    })
+    const component = { transformers: { label: makeTransformer('component') } }
+    const original = makeTransformer('app')
+    const replacement = makeTransformer('override')
+    const testApp = app({
+      container: first,
+      data: { title: 'original', value: 'draft' },
+      api: { label: 'first' },
+      components: { component },
+      transformers: { label: original }
+    })
+    const otherApp = app({
+      container: second,
+      data: { title: 'original', value: 'draft' },
+      api: { label: 'second' },
+      components: { component }
+    })
+
+    try {
+      const title = first.querySelector('span')
+      const input = first.querySelector('input')
+      await wait()
+      expect(title.textContent).toBe('first app: original')
+      expect(second.querySelector('span').textContent).toBe('second component: original')
+
+      testApp.transformers.label = replacement
+      testApp.data.title = '<replacement>'
+      input.value = 'edited'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await wait()
+      expect(title.textContent).toBe('first override: <replacement>')
+      expect(testApp.data.value).toBe('first override: edited')
+      expect(replacement.render.mock.contexts[0]).toBe(testApp.binding)
+      expect(replacement.render.mock.calls[0][2]).toBe(testApp)
+      expect(replacement.extract.mock.contexts[0]).toBe(testApp.binding)
+      expect(replacement.extract.mock.calls[0][2]).toBe(testApp)
+      expect(second.querySelector('span').textContent).toBe('second component: original')
+      expect(otherApp.data.value).toBe('draft')
+
+      const revised = makeTransformer('revised source')
+      testApp.components.app.transformers.label = revised
+      delete testApp.transformers.label
+      testApp.data.title = 'restored'
+      input.value = 'new draft'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await wait()
+      expect(title.textContent).toBe('first revised source: restored')
+      expect(testApp.data.value).toBe('first revised source: new draft')
+
+      testApp.transformers.label = function(context, next, owner) {
+        context.value = `${owner.api.label} direct: ${context.value}`
+        return next(context)
+      }
+      testApp.data.title = 'edited definition'
+      await wait()
+      expect(title.textContent).toBe('first direct: edited definition')
+    } finally {
+      testApp.destroy()
+      otherApp.destroy()
+    }
+  })
+
+  it('recomposes only the deleted name from current component and app hooks', () => {
+    const base = { render() {}, extract() {} }
+    const editor = { transformers: { label: base } }
+    const appSource = { render() {} }
+    const testApp = app({
+      components: { editor },
+      transformers: { label: appSource }
+    })
+
+    try {
+      expect(testApp.components.editor).toBe(editor)
+      expect(testApp.components.app.transformers.label).toBe(appSource)
+      expect(testApp.transformers.label.render).toBe(appSource.render)
+      expect(testApp.transformers.label.extract).toBe(base.extract)
+
+      const localRender = () => {}
+      testApp.transformers.label.render = localRender
+      expect(appSource.render).not.toBe(localRender)
+      expect(base.render).not.toBe(localRender)
+      testApp.transformers.other = localRender
+
+      editor.transformers.label = { extract() {} }
+      delete testApp.transformers.label
+      expect(testApp.transformers.label.render).toBe(appSource.render)
+      expect(testApp.transformers.label.extract).toBe(editor.transformers.label.extract)
+      expect(testApp.transformers.other).toBe(localRender)
+      delete testApp.transformers.other
+      expect(Object.keys(testApp.transformers)).toEqual(['label'])
+
+      const replacementComponent = { transformers: { label: { extract() {} } } }
+      testApp.components.editor = replacementComponent
+      delete testApp.transformers.label
+      expect(testApp.transformers.label.extract).toBe(replacementComponent.transformers.label.extract)
+
+      delete replacementComponent.transformers.label
+      delete testApp.components.app.transformers.label
+      delete testApp.transformers.label
+      expect(Object.keys(testApp.transformers)).toEqual([])
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('retains same-named components, top-level lifecycle and service identity', () => {
+    const nested = { transformers: { label() {} } }
+    const shared = { details: { base: true } }
+    const parent = {
+      components: { app: nested },
+      api: shared,
+      start: jest.fn(),
+      onError: jest.fn()
+    }
+    const namedApp = { transformers: { label() {} } }
+    const service = new Map()
+    const start = jest.fn()
+    const onError = jest.fn()
+    const testApp = app({
+      components: { parent, app: namedApp, app2: {} },
+      api: { details: { local: true } },
+      service,
+      start,
+      onError
+    })
+
+    try {
+      expect(testApp.components.app).toBe(namedApp)
+      expect(testApp.components.parent.components.app).toBe(nested)
+      expect(testApp.components.app3.start).toBe(start)
+      expect(testApp.transformers.label).toBe(namedApp.transformers.label)
+      expect(testApp.api.details).toEqual({ base: true, local: true })
+      expect(shared.details).toEqual({ base: true })
+      expect(testApp.service).toBe(service)
+      expect(testApp.onError).toBe(onError)
+      expect(start).toHaveBeenCalledTimes(1)
+      expect(start.mock.contexts[0]).toBe(testApp)
+      expect(parent.start).not.toHaveBeenCalled()
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('falls back to the binding built-in after removing an app-only edit', async () => {
+    document.body.innerHTML =
+      '<span data-simply-field="title" data-simply-transform="escape_html"></span>'
+    const testApp = app({ data: { title: '<first>' } })
+    try {
+      expect(testApp.components.app.data.title).toBe('<first>')
+      testApp.transformers.escape_html = (context, next) => {
+        context.value = 'custom'
+        next(context)
+      }
+      testApp.data.title = '<second>'
+      await wait()
+      expect(document.querySelector('span').textContent).toBe('custom')
+
+      delete testApp.transformers.escape_html
+      testApp.data.title = '<third>'
+      await wait()
+      expect(document.querySelector('span').textContent).toBe('<third>')
+    } finally {
+      testApp.destroy()
+    }
+  })
+
   it('uses transformer extract hooks for editable fields', async () => {
     document.body.innerHTML = `<div id="app">
       <select data-simply-edit="type" data-simply-transform="selectedObjectKey">
