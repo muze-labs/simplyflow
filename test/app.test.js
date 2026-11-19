@@ -132,15 +132,15 @@ describe('app API', () => {
     const first = document.querySelector('#first')
     const second = document.querySelector('#second')
     const makeTransformer = (name) => ({
-      render: jest.fn(function(context, next, owner) {
+      render: jest.fn(function(context, next) {
         if (!context.edit) {
-          context.value = `${owner.api.label} ${name}: ${context.value}`
+          context.value = `${this.app.api.label} ${name}: ${context.value}`
         }
         return next(context)
       }),
-      extract: jest.fn(function(context, next, owner) {
+      extract: jest.fn(function(context, next) {
         if (context.value !== context.currentValue) {
-          context.value = `${owner.api.label} ${name}: ${context.value}`
+          context.value = `${this.app.api.label} ${name}: ${context.value}`
         }
         return next(context)
       })
@@ -176,10 +176,11 @@ describe('app API', () => {
       await wait()
       expect(title.textContent).toBe('first override: <replacement>')
       expect(testApp.data.value).toBe('first override: edited')
+      expect(testApp.binding.app).toBe(testApp)
       expect(replacement.render.mock.contexts[0]).toBe(testApp.binding)
-      expect(replacement.render.mock.calls[0][2]).toBe(testApp)
+      expect(replacement.render.mock.calls[0]).toHaveLength(2)
       expect(replacement.extract.mock.contexts[0]).toBe(testApp.binding)
-      expect(replacement.extract.mock.calls[0][2]).toBe(testApp)
+      expect(replacement.extract.mock.calls[0]).toHaveLength(2)
       expect(second.querySelector('span').textContent).toBe('second component: original')
       expect(otherApp.data.value).toBe('draft')
 
@@ -193,8 +194,8 @@ describe('app API', () => {
       expect(title.textContent).toBe('first revised source: restored')
       expect(testApp.data.value).toBe('first revised source: new draft')
 
-      testApp.transformers.label = function(context, next, owner) {
-        context.value = `${owner.api.label} direct: ${context.value}`
+      testApp.transformers.label = function(context, next) {
+        context.value = `${this.app.api.label} direct: ${context.value}`
         return next(context)
       }
       testApp.data.title = 'edited definition'

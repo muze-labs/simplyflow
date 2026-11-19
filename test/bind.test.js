@@ -266,6 +266,7 @@ describe('bind can', () => {
       try {
         expect(document.body.innerHTML).toBe(rendered)
         expect(receiver).toBe(databind)
+        expect(receiver.app).toBeUndefined()
         expect(argumentCount).toBe(2)
         done()
       } catch(error) {

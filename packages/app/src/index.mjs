@@ -92,7 +92,7 @@ class SimplyApp
             root: this.data,
             container: this.container,
             attribute: options.attribute || 'data-simply',
-            transformerApp: this
+            app: this
         })
 
         if (options.drags || options.drops) {
