@@ -244,6 +244,8 @@ This repository is a private npm workspace root. The published main package live
 The development and test tools require Node.js 22.22.2+ on the 22.x line,
 24.15.0+ on the 24.x line, or 26.0.0+.
 
+With nvm, run `nvm install` once in this checkout, then `nvm use` in new shells.
+
 ```shell
 npm install
 npm test
