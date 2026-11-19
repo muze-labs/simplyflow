@@ -143,7 +143,10 @@ disappears on deletion. Binding uses the result on its next render or extraction
 ## Custom definition maps
 
 `simply.mergeable(object)` marks a custom object for composition and returns
-the same object. The module export is `mergeable`. Built-in sections such as
+the same object. The module export is `mergeable`. A reusable component can
+import this helper from its own copy of SimplyFlow. Apps mounted by another
+copy in the same window recognize the marker and each get their own editable map.
+Built-in sections such as
 `commands` and `transformers` already describe maps and keep their usual syntax.
 
 ```js

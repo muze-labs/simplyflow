@@ -29,8 +29,10 @@ function isRecord(value)
     return prototype === null || prototype === Object.prototype
 }
 
-// Mark by identity so a custom map keeps its original keys and descriptors.
-const markedMaps = new WeakSet()
+// A component and its host may load separate copies of SimplyFlow in one page.
+// Share only the opt-in identities. Each app still owns its realized maps.
+const registryKey = Symbol.for('@muze-labs/simplyflow.mergeableMaps')
+const markedMaps = globalThis[registryKey] ??= new WeakSet()
 const records = new WeakMap()
 const sections = new Set([
     'actions', 'behaviors', 'commands', 'drags', 'drops', 'routes',
