@@ -228,6 +228,15 @@ const news = simply.app({
 })
 ```
 
+## `app.addCleanup(fn)`
+
+Register synchronous cleanup for a subscription or other app-owned resource.
+The returned function unregisters the callback. When the app is destroyed,
+callbacks run once in reverse registration order with `this` set to the app.
+They run before SimplyFlow disposes its controllers. A cleanup failure still
+allows the remaining callbacks and controller cleanup to run. Destroy reports
+a single failure directly or groups multiple failures in an `AggregateError`.
+
 ## `app.destroy()`
 
 Stops the application and releases app-scoped listeners/observers.

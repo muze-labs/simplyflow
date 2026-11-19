@@ -33,7 +33,7 @@ const APP_OPTIONS = [
 
 const runtimeProperties = new Set([
     'commands', 'actions', 'shortcuts', 'routes', 'behaviors',
-    'binding', 'dragdrop', 'includes', 'accesskeys', 'destroy'
+    'binding', 'dragdrop', 'includes', 'accesskeys', 'destroy', 'addCleanup'
 ])
 
 class SimplyApp
@@ -74,22 +74,46 @@ class SimplyApp
         // Dispose the installed controllers even if app code replaces a property.
         const { binding, commands: commandApi, shortcuts: shortcutApi, accesskeys: keys,
             routes: router, behaviors: behaviorApi, dragdrop: dragApi, includes: includeApi } = this
+        const cleanups = new Set()
+        this.addCleanup = cleanup => {
+            if (typeof cleanup !== 'function' || this.destroyed) {
+                throw new TypeError('simplyflow/app: addCleanup requires a function and a live app')
+            }
+            cleanups.add(cleanup)
+            return () => cleanups.delete(cleanup)
+        }
         this.destroy = () => {
             if (this.destroyed) return
             this.destroyed = true
-            dragApi.destroy()
-            binding.destroy()
-            destroyCommands(commandApi)
-            destroyShortcuts(shortcutApi)
-            destroyAccesskeys(keys)
-            router.destroy()
-            behaviorApi.destroy()
-            includeApi.destroy()
+            const dispose = [
+                ...Array.from(cleanups).reverse().map(cleanup => () => cleanup.call(this)),
+                () => dragApi.destroy(),
+                () => binding.destroy(),
+                () => destroyCommands(commandApi),
+                () => destroyShortcuts(shortcutApi),
+                () => destroyAccesskeys(keys),
+                () => router.destroy(),
+                () => behaviorApi.destroy(),
+                () => includeApi.destroy()
+            ]
+            cleanups.clear()
+            const errors = []
+            for (const cleanup of dispose) {
+                try {
+                    cleanup()
+                } catch (error) {
+                    errors.push(error)
+                }
+            }
             this.binding = undefined
             this.routes = undefined
             this.behaviors = undefined
             this.includes = undefined
             this.accesskeys = undefined
+            if (errors.length === 1) throw errors[0]
+            if (errors.length > 1) {
+                throw new AggregateError(errors, 'simplyflow/app: multiple cleanups failed')
+            }
         }
     }
 

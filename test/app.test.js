@@ -1280,6 +1280,30 @@ describe('app integration details', () => {
   })
 
 
+  it('runs registered cleanups once and disposes controllers after a cleanup failure', () => {
+    const mounted = app()
+    const calls = []
+    const failure = new Error('unsubscribe failed')
+    mounted.addCleanup(function() {
+      expect(this).toBe(mounted)
+      expect(this.binding).toBeDefined()
+      calls.push('first')
+    })
+    const unregister = mounted.addCleanup(() => calls.push('removed'))
+    unregister()
+    mounted.addCleanup(() => {
+      calls.push('last')
+      mounted.destroy()
+      throw failure
+    })
+
+    expect(() => mounted.destroy()).toThrow(failure)
+    expect(mounted.binding).toBeUndefined()
+    mounted.destroy()
+    expect(calls).toEqual(['last', 'first'])
+    expect(() => mounted.addCleanup(() => {})).toThrow('live app')
+  })
+
   it('destroy stops command listeners', async () => {
     document.body.innerHTML = `<div id="app"><button data-simply-command="count">Count</button></div>`
     const container = document.getElementById('app')
