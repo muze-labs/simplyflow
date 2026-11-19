@@ -958,6 +958,47 @@ describe('app API', () => {
 
 
 describe('app integration details', () => {
+  it('keeps a keyed row focused and rebinds its controls after replacement and reorder', async () => {
+    document.body.innerHTML = `<ul data-simply-list="rows" data-simply-list-key="id">
+      <template><li><button data-simply-command="select" data-simply-value=":value.id">
+          <span data-simply-field="label"></span></button>
+        <input data-simply-edit="label">
+        <button data-simply-command="selectIndex" data-simply-value=":key"></button>
+      </li></template></ul>`
+    const select = jest.fn()
+    const selectIndex = jest.fn()
+    const mounted = app({
+      data: { rows: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] },
+      commands: { select, selectIndex }
+    })
+    try {
+      await wait()
+      const buttons = document.querySelectorAll('[data-simply-command="select"]')
+      const focused = buttons[1]
+      focused.focus()
+
+      mounted.data.rows = [{ id: 'b', label: 'New B' }, { id: 'a', label: 'New A' }]
+      await wait()
+      expect([...document.querySelectorAll('[data-simply-command="select"]')]).toEqual([buttons[1], buttons[0]])
+      expect(document.activeElement).toBe(focused)
+      expect(focused.textContent.trim()).toBe('New B')
+      focused.click()
+      expect(select).toHaveBeenCalledWith(focused, 'b', expect.any(MouseEvent))
+      const indexButton = focused.parentElement.querySelector('[data-simply-command="selectIndex"]')
+      indexButton.click()
+      expect(selectIndex).toHaveBeenCalledWith(indexButton, '0', expect.any(MouseEvent))
+
+      const input = focused.parentElement.querySelector('input')
+      expect(input.value).toBe('New B')
+      input.value = 'Edited B'
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await wait()
+      expect(mounted.data.rows.map(row => row.label)).toEqual(['Edited B', 'New A'])
+    } finally {
+      mounted.destroy()
+    }
+  })
+
   it('renders and refreshes each app’s local card template', () => {
     const list = '<ul data-simply-list="items"><template rel="card"></template></ul>'
     document.body.innerHTML = `<main>${list}</main><aside>${list}</aside>`
@@ -1279,6 +1320,24 @@ describe('app integration details', () => {
     testApp.destroy()
   })
 
+
+  it('runs the app destroy hook once and disposes controllers if it throws', () => {
+    const failure = new Error('unsubscribe failed')
+    const componentDestroy = jest.fn()
+    const destroy = jest.fn(function() {
+      expect(this).toBe(mounted)
+      expect(this.binding).toBeDefined()
+      this.destroy()
+      throw failure
+    })
+    const mounted = app({ destroy, components: { editor: { destroy: componentDestroy } } })
+
+    expect(() => mounted.destroy()).toThrow(failure)
+    expect(mounted.binding).toBeUndefined()
+    mounted.destroy()
+    expect(destroy).toHaveBeenCalledTimes(1)
+    expect(componentDestroy).not.toHaveBeenCalled()
+  })
 
   it('destroy stops command listeners', async () => {
     document.body.innerHTML = `<div id="app"><button data-simply-command="count">Count</button></div>`

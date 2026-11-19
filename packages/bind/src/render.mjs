@@ -4,7 +4,7 @@
  */
 import { signal as domSignal, trackDomField, trackDomList } from './dom.mjs'
 import { throttledEffect, effect, untracked, batch } from '@muze-labs/simplyflow-state'
-import { getItemKey, setItemKey } from './item-key.mjs'
+import { commandKeyPaths, getItemKey, setItemKey } from './item-key.mjs'
 import { getValueByPath } from './index.mjs'
 import { DEP } from '@muze-labs/simplyflow-state/symbols'
 
@@ -149,6 +149,23 @@ export function setValueByPath(root, path, value, options={})
     })
 }
 
+const stableRowKeys = new WeakMap()
+
+function listKeys(values, path)
+{
+    const seen = new Set()
+    return Array.from(values, value => {
+        const key = getValueByPath(value, path)
+        if ((typeof key !== 'string' && !Number.isFinite(key)) || seen.has(key)) {
+            throw new Error(
+                `simplyflow/bind: list key "${path}" must give each row a unique string or finite number`
+            )
+        }
+        seen.add(key)
+        return key
+    })
+}
+
 /**
  * Renders an array value by applying templates for each entry
  * Replaces or removes existing DOM children if needed
@@ -160,39 +177,77 @@ export function arrayByTemplates(context)
 {
     const attribute      = this.options.attribute
     const attributes     = [attribute+'-field',attribute+'-edit',attribute+'-list',attribute+'-map',attribute+'-value-path']
-    const attrQuery      = '['+attributes.join('],[')+']'
+    const valueAttribute = attribute+'-value'
+    const attrQuery      = '['+[...attributes, valueAttribute].join('],[')+']'
     const keyAttribute   = attribute+'-key'
     const items          = Array.from(context.element.childNodes).filter(node => getItemKey(node, keyAttribute) != null)
     const usedItems      = new Set()
     let cursor           = 0
 
+    const host = context.element
+    const keyPath = host.getAttribute(attribute + '-list-key')
+    const keys = keyPath ? listKeys(context.value, keyPath) : null
+    const rowsByKey = keys ? new Map(items.map(item => [stableRowKeys.get(item), item])) : null
+    const focused = keys ? host.getRootNode().activeElement : null
+    const preserveFocus = focused && host.contains(focused)
+
     context.list = context.value
+
+    function createRow(binding, key) {
+        const fragment = binding.applyTemplate(context)
+        if (keys) {
+            const root = Array.from(fragment.childNodes).find(node => node[DEP.TEMPLATE])
+            if (root) {
+                stableRowKeys.set(root, key)
+            }
+        }
+        return fragment
+    }
 
     for (let index = 0; index < context.value.length; index++) {
         context.index = index
         const value = context.list[index]
-        let item = nextUnusedItem(items, usedItems, cursor)
+        const item = nextUnusedItem(items, usedItems, cursor)
+        const stableKey = keys?.[index]
 
         if (!item) {
-            context.element.appendChild(this.applyTemplate(context))
+            host.appendChild(createRow(this, stableKey))
             continue
         }
 
         const newTemplate = this.findTemplate(context.templates, value)
-        const currentValueMatches = item[DEP.VALUE] === value
-        let reusableItem = currentValueMatches
-            ? item
-            : findReusableItem(items, usedItems, value, newTemplate, cursor + 1)
+        const reusableItem = rowsByKey
+            ? rowsByKey.get(stableKey)
+            : item[DEP.VALUE] === value
+                ? item
+                : findReusableItem(items, usedItems, value, newTemplate, cursor + 1)
 
         if (reusableItem) {
-            if (newTemplate !== reusableItem[DEP.TEMPLATE] || (context.refreshTemplate && newTemplate === context.refreshTemplate)) {
-                context.element.replaceChild(this.applyTemplate(context), reusableItem)
+            const replace = newTemplate !== reusableItem[DEP.TEMPLATE] ||
+                (context.refreshTemplate && newTemplate === context.refreshTemplate)
+            if (replace) {
+                const replacement = createRow(this, stableKey)
+                if (keys && reusableItem !== item) {
+                    host.insertBefore(replacement, item)
+                    reusableItem.remove()
+                } else {
+                    host.replaceChild(replacement, reusableItem)
+                }
             } else {
                 if (reusableItem !== item) {
-                    context.element.insertBefore(reusableItem, item)
+                    if (keys && host.moveBefore) {
+                        host.moveBefore(reusableItem, item)
+                    } else {
+                        host.insertBefore(reusableItem, item)
+                    }
                 }
-                updateItemKey(reusableItem, index, context.path, keyAttribute, attributes, attrQuery)
+                const changed = keys && (getItemKey(reusableItem, keyAttribute) !== String(index) ||
+                    reusableItem[DEP.VALUE] !== value)
+                updateItemKey(reusableItem, index, context.path, keyAttribute, attributes, attrQuery, valueAttribute)
                 reusableItem[DEP.VALUE] = value
+                if (keys && changed && reusableItem.nodeType === Node.ELEMENT_NODE) {
+                    this.rebindListItem(reusableItem)
+                }
             }
             usedItems.add(reusableItem)
             if (reusableItem === item) {
@@ -201,13 +256,17 @@ export function arrayByTemplates(context)
             continue
         }
 
-        context.element.insertBefore(this.applyTemplate(context), item)
+        host.insertBefore(createRow(this, stableKey), item)
     }
 
-    for (let item of items) {
+    for (const item of items) {
         if (!usedItems.has(item)) {
             item.remove()
         }
+    }
+
+    if (preserveFocus && host.contains(focused) && host.getRootNode().activeElement !== focused) {
+        focused.focus({ preventScroll: true })
     }
 
     if (this.options.twoway) {
@@ -237,7 +296,7 @@ function findReusableItem(items, usedItems, value, template, start)
 }
 
 
-function updateItemKey(item, key, path, keyAttribute, attributes, attrQuery)
+function updateItemKey(item, key, path, keyAttribute, attributes, attrQuery, valueAttribute)
 {
     const oldKey = getItemKey(item, keyAttribute)
     const newKey = ''+key
@@ -259,6 +318,13 @@ function updateItemKey(item, key, path, keyAttribute, attributes, attrQuery)
     }
 
     for (let binding of bindings) {
+        const commandPath = commandKeyPaths.get(binding)
+        if (commandPath === oldPrefix) {
+            binding.setAttribute(valueAttribute, newKey)
+            commandKeyPaths.set(binding, newPrefix)
+        } else if (commandPath?.startsWith(oldPrefix+'.')) {
+            commandKeyPaths.set(binding, newPrefix+commandPath.slice(oldPrefix.length))
+        }
         for (let attr of attributes) {
             const bindPath = binding.getAttribute(attr)
             if (!bindPath || bindPath.substr(0,5)===':root') {
@@ -282,7 +348,8 @@ export function objectByTemplates(context)
 {
     const attribute      = this.options.attribute
     const attributes     = [attribute+'-field',attribute+'-edit',attribute+'-list',attribute+'-map',attribute+'-value-path']
-    const attrQuery      = '['+attributes.join('],[')+']'
+    const valueAttribute = attribute+'-value'
+    const attrQuery      = '['+[...attributes, valueAttribute].join('],[')+']'
     const keyAttribute   = attribute+'-key'
     const items          = Array.from(context.element.childNodes).filter(node => getItemKey(node, keyAttribute) != null)
     const usedItems      = new Set()
@@ -317,7 +384,7 @@ export function objectByTemplates(context)
                 if (reusableItem !== item) {
                     context.element.insertBefore(reusableItem, item)
                 }
-                updateItemKey(reusableItem, key, context.path, keyAttribute, attributes, attrQuery)
+                updateItemKey(reusableItem, key, context.path, keyAttribute, attributes, attrQuery, valueAttribute)
                 reusableItem[DEP.VALUE] = value
             }
             usedItems.add(reusableItem)

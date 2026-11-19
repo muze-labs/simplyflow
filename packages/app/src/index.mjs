@@ -18,6 +18,7 @@ const APP_OPTIONS = [
     'templates',
     'styles',
     'start',
+    'destroy',
     'onError',
     'components',
     'behaviors',
@@ -77,19 +78,39 @@ class SimplyApp
         this.destroy = () => {
             if (this.destroyed) return
             this.destroyed = true
-            dragApi.destroy()
-            binding.destroy()
-            destroyCommands(commandApi)
-            destroyShortcuts(shortcutApi)
-            destroyAccesskeys(keys)
-            router.destroy()
-            behaviorApi.destroy()
-            includeApi.destroy()
+            const dispose = [
+                () => {
+                    const destroy = options.destroy
+                    if (typeof destroy === 'function') {
+                        destroy.call(this)
+                    }
+                },
+                () => dragApi.destroy(),
+                () => binding.destroy(),
+                () => destroyCommands(commandApi),
+                () => destroyShortcuts(shortcutApi),
+                () => destroyAccesskeys(keys),
+                () => router.destroy(),
+                () => behaviorApi.destroy(),
+                () => includeApi.destroy()
+            ]
+            const errors = []
+            for (const cleanup of dispose) {
+                try {
+                    cleanup()
+                } catch (error) {
+                    errors.push(error)
+                }
+            }
             this.binding = undefined
             this.routes = undefined
             this.behaviors = undefined
             this.includes = undefined
             this.accesskeys = undefined
+            if (errors.length === 1) throw errors[0]
+            if (errors.length > 1) {
+                throw new AggregateError(errors, 'simplyflow/app: multiple cleanups failed')
+            }
         }
     }
 

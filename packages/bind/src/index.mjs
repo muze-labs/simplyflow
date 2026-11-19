@@ -1,6 +1,6 @@
 import { throttledEffect, destroy } from '@muze-labs/simplyflow-state'
 import { escape_html, fixed_content, attributes } from './transformers.mjs'
-import { setItemKey } from './item-key.mjs'
+import { commandKeyPaths, setItemKey } from './item-key.mjs'
 import { releaseDomBinding } from './dom.mjs'
 import * as render from './render.mjs'
 import { DEP } from '@muze-labs/simplyflow-state/symbols'
@@ -13,6 +13,10 @@ import { DEP } from '@muze-labs/simplyflow-state/symbols'
  */
 class SimplyBind
 {
+    #pendingUpdates = 0
+    #idleWaiters = []
+    #idleTimer = null
+
     
     /**
      * @param Object options - a set of options for this instance, options may include:
@@ -106,7 +110,7 @@ class SimplyBind
                 context.element = el
                 track(el, context)
                 runTransformers(context)
-            }, 50))
+            }, 50, { schedule: this.scheduleUpdate }))
         }
 
         // finds and runs applicable render transformers
@@ -164,6 +168,23 @@ class SimplyBind
             return true
         }
 
+        const selector = bindAttributes.map(name => `[${name}]`).join(',')
+        this.rebindListItem = item => {
+            // Finish moving rows before re-reading their updated binding paths.
+            queueMicrotask(() => {
+                if (!this.observer || !this.options.container.contains(item)) {
+                    return
+                }
+                for (const node of [item, ...item.querySelectorAll(selector)]) {
+                    const previous = this.bindings.get(node)
+                    if (previous) {
+                        renderElement(node)
+                        destroy(previous)
+                    }
+                }
+            })
+        }
+
         // given a set of elements with data bind attribute
         // this renders each of those elements
         const applyBindings = (bindings) => {
@@ -178,7 +199,6 @@ class SimplyBind
         // if any element is added, and has a data bind attribute
         // it applies that data binding
         const updateBindings = (changes) => {
-            const selector = `[${attribute}-field],[${attribute}-edit],[${attribute}-list],[${attribute}-map]`
             for (const change of changes) {
                 if (change.type=="childList" && change.addedNodes) {
                     for (let node of change.addedNodes) {
@@ -317,6 +337,9 @@ class SimplyBind
             if (Object.hasOwn(resolved, 'path')) {
                 element.setAttribute(valuePathAttribute, resolved.path)
             } else {
+                if (value === ':key' && index != null) {
+                    commandKeyPaths.set(element, templateItemPath(path, index))
+                }
                 element.setAttribute(valueAttribute, resolved.value)
                 element.removeAttribute(valuePathAttribute)
             }
@@ -470,6 +493,57 @@ class SimplyBind
         return template
     }
 
+    scheduleUpdate = (run, delay) => {
+        this.#pendingUpdates++
+        const finish = () => {
+            this.#pendingUpdates--
+            this.#checkIdle()
+        }
+        const timer = setTimeout(() => {
+            try {
+                run()
+            } finally {
+                finish()
+            }
+        }, delay)
+        return () => {
+            clearTimeout(timer)
+            finish()
+        }
+    }
+
+    whenIdle()
+    {
+        if (!this.observer) {
+            return Promise.resolve()
+        }
+        return new Promise(resolve => {
+            this.#idleWaiters.push(resolve)
+            this.#checkIdle()
+        })
+    }
+
+    #checkIdle()
+    {
+        if (this.#pendingUpdates || !this.#idleWaiters.length || this.#idleTimer !== null) {
+            return
+        }
+        // Let mutation observers bind newly rendered children before settling.
+        this.#idleTimer = setTimeout(() => {
+            this.#idleTimer = null
+            if (!this.#pendingUpdates) {
+                this.#resolveIdleWaiters()
+            }
+        }, 0)
+    }
+
+    #resolveIdleWaiters()
+    {
+        for (const resolve of this.#idleWaiters.splice(0)) {
+            resolve()
+        }
+    }
+
     releaseBinding(element, flush = false)
     {
         const binding = this.bindings.get(element)
@@ -488,6 +562,9 @@ class SimplyBind
         }
         this.observer?.disconnect()
         this.observer = null
+        clearTimeout(this.#idleTimer)
+        this.#idleTimer = null
+        this.#resolveIdleWaiters()
     }
 
 }

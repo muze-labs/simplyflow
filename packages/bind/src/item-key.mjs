@@ -15,3 +15,7 @@ export function setItemKey(node, attribute, key)
         node.setAttribute(attribute, key)
     }
 }
+
+
+// Dynamic :key command values use the row path to distinguish nested rows.
+export const commandKeyPaths = new WeakMap()

@@ -142,6 +142,32 @@ describe('bind can', () => {
     }
   })
 
+  it('waits for scheduled list updates and bindings on newly created children', async () => {
+    document.body.innerHTML = `<ul data-flow-list="items">
+      <template><li><input data-flow-edit="label"></li></template>
+    </ul>`
+    const data = signal({ items: [{ label: 'Before' }] })
+    const binding = bind({ root: data })
+    try {
+      data.items = [{ label: 'After' }, { label: 'Added' }]
+      await binding.whenIdle()
+      const inputs = document.querySelectorAll('input')
+      expect(Array.from(inputs, input => input.value)).toEqual(['After', 'Added'])
+
+      inputs[1].value = 'Edited'
+      inputs[1].dispatchEvent(new Event('input', { bubbles: true }))
+      await binding.whenIdle()
+      expect(data.items[1].label).toBe('Edited')
+
+      data.items = []
+      const pending = binding.whenIdle()
+      binding.destroy()
+      await pending
+    } finally {
+      binding.destroy()
+    }
+  })
+
   it('render simple list', (done) => {
     const source = `
   <ul data-flow-list="menu">

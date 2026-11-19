@@ -180,7 +180,7 @@ export function composeApp(definition)
         }
         for (const key of Reflect.ownKeys(source)) {
             if (['components', 'data', '__proto__', 'prototype'].includes(key) ||
-                (name !== 'app' && (key === 'start' || key === 'onError'))) {
+                (name !== 'app' && ['start', 'destroy', 'onError'].includes(key))) {
                 continue
             }
             const entry = Object.getOwnPropertyDescriptor(source, key)

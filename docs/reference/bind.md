@@ -73,6 +73,13 @@ With the default `data-flow` prefix:
 
 `data-flow-list` accepts arrays and single values. Arrays render one item per array element. A single object or scalar renders as a one-item list. `null` and `undefined` render no items. This is useful for linked-data style properties where the same field may contain one value or many values.
 
+Add `data-flow-list-key="id"` to an ordered list to identify rows by a
+stable item property. An app using the default prefix writes
+`data-simply-list-key="id"`. The path is relative to the item and must return
+a unique string or finite number for every row. With the same key and
+template, a new object can reuse the existing row and its bindings. The
+generated row key still holds the current array index.
+
 Inside a list template, relative paths are resolved against the current item. Special paths include:
 
 | Path | Meaning |
@@ -118,6 +125,15 @@ Returns the value at a binding path. Supports binding special paths such as `:ro
 ### `trace(path)`
 
 Returns global binding trace data for a path.
+
+## Waiting for bindings
+
+After changing bound data or adding bound elements, await `binding.whenIdle()`
+to wait for this binding's scheduled DOM updates, including bindings on new
+children. An app can use `await app.binding.whenIdle()` before focusing a
+control that a list update creates. The promise also settles when the binding
+is destroyed. Browser paint, layout and asynchronous work outside the
+binding have their own completion signals.
 
 ## Refreshing a template
 

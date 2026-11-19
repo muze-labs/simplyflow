@@ -38,6 +38,15 @@ Adds a transform to the pipeline. `fn` is called with the previous pipeline sign
 
 Most users use the built-in transform factories below.
 
+## `model.destroy()`
+
+Replacing `model.state.data` updates the source signal and the pipeline. A
+model with no transforms exposes that source as `model.view`.
+
+Call `model.destroy()` when the owner closes. It stops the source and the
+effects added to this model. Repeated calls are safe. The last view stays
+available, and the model is closed to new effects.
+
 ## `sort(options)`
 
 Sorts the input data.

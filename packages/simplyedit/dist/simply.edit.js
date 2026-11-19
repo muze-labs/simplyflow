@@ -568,7 +568,11 @@ function runBatchedListeners() {
   runListeners(clocked);
   runListeners(ready);
 }
-function throttledEffect(fn, throttleTime) {
+function scheduleTimeout(run, delay) {
+  const timer = globalThis.setTimeout(run, delay);
+  return () => globalThis.clearTimeout(timer);
+}
+function throttledEffect(fn, throttleTime, { schedule = scheduleTimeout } = {}) {
   assertFunction(fn, "throttledEffect");
   if (!Number.isFinite(throttleTime) || throttleTime < 0) {
     throw new TypeError("simplyflow/state: throttledEffect() expects throttleTime to be a non-negative number");
@@ -578,25 +582,25 @@ function throttledEffect(fn, throttleTime) {
   const connectedSignal = effectSignal(fn);
   let throttledUntil = 0;
   let hasChange = true;
-  let timeout = null;
+  let cancelPending = null;
   const compute = function computeEffect() {
     const now = Date.now();
     if (throttledUntil > now) {
       hasChange = true;
-      schedule();
+      scheduleUpdate();
       return;
     }
     runTracked(compute, connectedSignal, fn, throttledEffect);
     hasChange = false;
     throttledUntil = Date.now() + throttleTime;
   };
-  function schedule() {
-    if (timeout) {
+  function scheduleUpdate() {
+    if (cancelPending) {
       return;
     }
     const delay = Math.max(0, throttledUntil - Date.now());
-    timeout = globalThis.setTimeout(() => {
-      timeout = null;
+    cancelPending = schedule(() => {
+      cancelPending = null;
       if (hasChange) {
         compute();
       }
@@ -604,15 +608,16 @@ function throttledEffect(fn, throttleTime) {
   }
   compute.fn = fn;
   compute.destroy = (flush) => {
-    if (flush && hasChange) {
-      throttledUntil = 0;
-      compute();
+    try {
+      if (flush && hasChange) {
+        throttledUntil = 0;
+        compute();
+      }
+    } finally {
+      cancelPending?.();
+      cancelPending = null;
+      hasChange = false;
     }
-    if (timeout) {
-      globalThis.clearTimeout(timeout);
-      timeout = null;
-    }
-    hasChange = false;
   };
   effectMap.set(connectedSignal, compute);
   try {
@@ -647,6 +652,7 @@ function setItemKey(node, attribute, key) {
     node.setAttribute(attribute, key);
   }
 }
+var commandKeyPaths = /* @__PURE__ */ new WeakMap();
 
 // ../bind/src/render.mjs
 function writesFromDom(binding, context) {
@@ -750,35 +756,81 @@ function setValueByPath(root, path2, value, options = {}) {
     }
   });
 }
+var stableRowKeys = /* @__PURE__ */ new WeakMap();
+function listKeys(values, path2) {
+  const seen = /* @__PURE__ */ new Set();
+  return Array.from(values, (value) => {
+    const key = getValueByPath(value, path2);
+    if (typeof key !== "string" && !Number.isFinite(key) || seen.has(key)) {
+      throw new Error(
+        `simplyflow/bind: list key "${path2}" must give each row a unique string or finite number`
+      );
+    }
+    seen.add(key);
+    return key;
+  });
+}
 function arrayByTemplates(context) {
   const attribute = this.options.attribute;
   const attributes2 = [attribute + "-field", attribute + "-edit", attribute + "-list", attribute + "-map", attribute + "-value-path"];
-  const attrQuery = "[" + attributes2.join("],[") + "]";
+  const valueAttribute = attribute + "-value";
+  const attrQuery = "[" + [...attributes2, valueAttribute].join("],[") + "]";
   const keyAttribute = attribute + "-key";
   const items = Array.from(context.element.childNodes).filter((node) => getItemKey(node, keyAttribute) != null);
   const usedItems = /* @__PURE__ */ new Set();
   let cursor = 0;
+  const host = context.element;
+  const keyPath = host.getAttribute(attribute + "-list-key");
+  const keys = keyPath ? listKeys(context.value, keyPath) : null;
+  const rowsByKey = keys ? new Map(items.map((item) => [stableRowKeys.get(item), item])) : null;
+  const focused = keys ? host.getRootNode().activeElement : null;
+  const preserveFocus = focused && host.contains(focused);
   context.list = context.value;
+  function createRow(binding, key) {
+    const fragment = binding.applyTemplate(context);
+    if (keys) {
+      const root = Array.from(fragment.childNodes).find((node) => node[DEP.TEMPLATE]);
+      if (root) {
+        stableRowKeys.set(root, key);
+      }
+    }
+    return fragment;
+  }
   for (let index = 0; index < context.value.length; index++) {
     context.index = index;
     const value = context.list[index];
-    let item = nextUnusedItem(items, usedItems, cursor);
+    const item = nextUnusedItem(items, usedItems, cursor);
+    const stableKey = keys?.[index];
     if (!item) {
-      context.element.appendChild(this.applyTemplate(context));
+      host.appendChild(createRow(this, stableKey));
       continue;
     }
     const newTemplate = this.findTemplate(context.templates, value);
-    const currentValueMatches = item[DEP.VALUE] === value;
-    let reusableItem = currentValueMatches ? item : findReusableItem(items, usedItems, value, newTemplate, cursor + 1);
+    const reusableItem = rowsByKey ? rowsByKey.get(stableKey) : item[DEP.VALUE] === value ? item : findReusableItem(items, usedItems, value, newTemplate, cursor + 1);
     if (reusableItem) {
-      if (newTemplate !== reusableItem[DEP.TEMPLATE] || context.refreshTemplate && newTemplate === context.refreshTemplate) {
-        context.element.replaceChild(this.applyTemplate(context), reusableItem);
+      const replace = newTemplate !== reusableItem[DEP.TEMPLATE] || context.refreshTemplate && newTemplate === context.refreshTemplate;
+      if (replace) {
+        const replacement = createRow(this, stableKey);
+        if (keys && reusableItem !== item) {
+          host.insertBefore(replacement, item);
+          reusableItem.remove();
+        } else {
+          host.replaceChild(replacement, reusableItem);
+        }
       } else {
         if (reusableItem !== item) {
-          context.element.insertBefore(reusableItem, item);
+          if (keys && host.moveBefore) {
+            host.moveBefore(reusableItem, item);
+          } else {
+            host.insertBefore(reusableItem, item);
+          }
         }
-        updateItemKey(reusableItem, index, context.path, keyAttribute, attributes2, attrQuery);
+        const changed = keys && (getItemKey(reusableItem, keyAttribute) !== String(index) || reusableItem[DEP.VALUE] !== value);
+        updateItemKey(reusableItem, index, context.path, keyAttribute, attributes2, attrQuery, valueAttribute);
         reusableItem[DEP.VALUE] = value;
+        if (keys && changed && reusableItem.nodeType === Node.ELEMENT_NODE) {
+          this.rebindListItem(reusableItem);
+        }
       }
       usedItems.add(reusableItem);
       if (reusableItem === item) {
@@ -786,12 +838,15 @@ function arrayByTemplates(context) {
       }
       continue;
     }
-    context.element.insertBefore(this.applyTemplate(context), item);
+    host.insertBefore(createRow(this, stableKey), item);
   }
-  for (let item of items) {
+  for (const item of items) {
     if (!usedItems.has(item)) {
       item.remove();
     }
+  }
+  if (preserveFocus && host.contains(focused) && host.getRootNode().activeElement !== focused) {
+    focused.focus({ preventScroll: true });
   }
   if (this.options.twoway) {
     trackDomList.call(this, context.element);
@@ -814,7 +869,7 @@ function findReusableItem(items, usedItems, value, template, start) {
     }
   }
 }
-function updateItemKey(item, key, path2, keyAttribute, attributes2, attrQuery) {
+function updateItemKey(item, key, path2, keyAttribute, attributes2, attrQuery, valueAttribute) {
   const oldKey = getItemKey(item, keyAttribute);
   const newKey = "" + key;
   if (oldKey === newKey) {
@@ -831,6 +886,13 @@ function updateItemKey(item, key, path2, keyAttribute, attributes2, attrQuery) {
     bindings.unshift(item);
   }
   for (let binding of bindings) {
+    const commandPath = commandKeyPaths.get(binding);
+    if (commandPath === oldPrefix) {
+      binding.setAttribute(valueAttribute, newKey);
+      commandKeyPaths.set(binding, newPrefix);
+    } else if (commandPath?.startsWith(oldPrefix + ".")) {
+      commandKeyPaths.set(binding, newPrefix + commandPath.slice(oldPrefix.length));
+    }
     for (let attr of attributes2) {
       const bindPath = binding.getAttribute(attr);
       if (!bindPath || bindPath.substr(0, 5) === ":root") {
@@ -847,7 +909,8 @@ function updateItemKey(item, key, path2, keyAttribute, attributes2, attrQuery) {
 function objectByTemplates(context) {
   const attribute = this.options.attribute;
   const attributes2 = [attribute + "-field", attribute + "-edit", attribute + "-list", attribute + "-map", attribute + "-value-path"];
-  const attrQuery = "[" + attributes2.join("],[") + "]";
+  const valueAttribute = attribute + "-value";
+  const attrQuery = "[" + [...attributes2, valueAttribute].join("],[") + "]";
   const keyAttribute = attribute + "-key";
   const items = Array.from(context.element.childNodes).filter((node) => getItemKey(node, keyAttribute) != null);
   const usedItems = /* @__PURE__ */ new Set();
@@ -875,7 +938,7 @@ function objectByTemplates(context) {
         if (reusableItem !== item) {
           context.element.insertBefore(reusableItem, item);
         }
-        updateItemKey(reusableItem, key, context.path, keyAttribute, attributes2, attrQuery);
+        updateItemKey(reusableItem, key, context.path, keyAttribute, attributes2, attrQuery, valueAttribute);
         reusableItem[DEP.VALUE] = value;
       }
       usedItems.add(reusableItem);
@@ -1283,8 +1346,7 @@ function trackDomList(element2) {
   if (domEffects.has(element2)) {
     return getSignal(element2);
   }
-  const path2 = this.getBindingPath(element2);
-  if (!path2) {
+  if (!this.getBindingPath(element2)) {
     throw new Error("Could not find binding path for element", { cause: element2 });
   }
   const s = signal2(element2, {
@@ -1296,6 +1358,10 @@ function trackDomList(element2) {
     untracked(() => {
       batch(() => {
         let key = 0;
+        const path2 = this.getBindingPath(element2);
+        if (!path2) {
+          return;
+        }
         const currentList = getValueByPath(this.options.root, path2);
         const source = currentList.slice();
         for (const item of element2.childNodes) {
@@ -1319,7 +1385,7 @@ function trackDomList(element2) {
         }
       });
     });
-  }, 50);
+  }, 50, { schedule: this.scheduleUpdate });
   domEffects.set(element2, effect2);
   return s;
 }
@@ -1327,8 +1393,7 @@ function trackDomField(element2, props, valueIsString, stringProperty = "innerHT
   if (domEffects.has(element2)) {
     return;
   }
-  const path2 = this.getBindingPath(element2);
-  if (!path2) {
+  if (!this.getBindingPath(element2)) {
     throw new Error("Could not find binding path for element", { cause: element2 });
   }
   const s = signal2(element2);
@@ -1346,12 +1411,19 @@ function trackDomField(element2, props, valueIsString, stringProperty = "innerHT
         }
       }
       untracked(() => {
+        const path2 = this.getBindingPath(element2);
+        if (!path2) {
+          return;
+        }
         const currentValue = getValueByPath(this.options.root, path2);
         if (getUpdateValue) {
           updateValue = getUpdateValue.call(this, s, currentValue);
         }
         if (typeof updateValue === "undefined") {
           return;
+        }
+        if (context) {
+          context.path = path2;
         }
         updateValue = this.extractValue?.(context, updateValue, currentValue) ?? updateValue;
         if (typeof updateValue === "undefined") {
@@ -1362,7 +1434,7 @@ function trackDomField(element2, props, valueIsString, stringProperty = "innerHT
         }
         setValueByPath(this.options.root, path2, updateValue, { replace: context?.replaceValue });
       });
-    }, 50);
+    }, 50, { schedule: this.scheduleUpdate });
     domEffects.set(element2, effect2);
   });
   return s;
@@ -1476,6 +1548,9 @@ function readAttributes(element2, names) {
 
 // ../bind/src/index.mjs
 var SimplyBind = class {
+  #pendingUpdates = 0;
+  #idleWaiters = [];
+  #idleTimer = null;
   /**
    * @param Object options - a set of options for this instance, options may include:
    *  - root (signal) (required) - the root data object that contains al signals that can be bound
@@ -1552,7 +1627,7 @@ var SimplyBind = class {
         context.element = el;
         track(el, context);
         runTransformers(context);
-      }, 50));
+      }, 50, { schedule: this.scheduleUpdate }));
     };
     const runTransformers = (context) => {
       let transformers;
@@ -1600,6 +1675,21 @@ var SimplyBind = class {
       }
       return true;
     };
+    const selector = bindAttributes.map((name) => `[${name}]`).join(",");
+    this.rebindListItem = (item) => {
+      queueMicrotask(() => {
+        if (!this.observer || !this.options.container.contains(item)) {
+          return;
+        }
+        for (const node of [item, ...item.querySelectorAll(selector)]) {
+          const previous = this.bindings.get(node);
+          if (previous) {
+            renderElement(node);
+            destroy(previous);
+          }
+        }
+      });
+    };
     const applyBindings = (bindings2) => {
       for (let bindingEl of bindings2) {
         if (!this.bindings.get(bindingEl)) {
@@ -1608,7 +1698,6 @@ var SimplyBind = class {
       }
     };
     const updateBindings = (changes) => {
-      const selector = `[${attribute}-field],[${attribute}-edit],[${attribute}-list],[${attribute}-map]`;
       for (const change of changes) {
         if (change.type == "childList" && change.addedNodes) {
           for (let node of change.addedNodes) {
@@ -1723,6 +1812,9 @@ var SimplyBind = class {
       if (Object.hasOwn(resolved, "path")) {
         element2.setAttribute(valuePathAttribute, resolved.path);
       } else {
+        if (value === ":key" && index != null) {
+          commandKeyPaths.set(element2, templateItemPath(path2, index));
+        }
         element2.setAttribute(valueAttribute, resolved.value);
         element2.removeAttribute(valuePathAttribute);
       }
@@ -1850,6 +1942,49 @@ var SimplyBind = class {
     }
     return template;
   }
+  scheduleUpdate = (run, delay) => {
+    this.#pendingUpdates++;
+    const finish = () => {
+      this.#pendingUpdates--;
+      this.#checkIdle();
+    };
+    const timer = setTimeout(() => {
+      try {
+        run();
+      } finally {
+        finish();
+      }
+    }, delay);
+    return () => {
+      clearTimeout(timer);
+      finish();
+    };
+  };
+  whenIdle() {
+    if (!this.observer) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.#idleWaiters.push(resolve);
+      this.#checkIdle();
+    });
+  }
+  #checkIdle() {
+    if (this.#pendingUpdates || !this.#idleWaiters.length || this.#idleTimer !== null) {
+      return;
+    }
+    this.#idleTimer = setTimeout(() => {
+      this.#idleTimer = null;
+      if (!this.#pendingUpdates) {
+        this.#resolveIdleWaiters();
+      }
+    }, 0);
+  }
+  #resolveIdleWaiters() {
+    for (const resolve of this.#idleWaiters.splice(0)) {
+      resolve();
+    }
+  }
   releaseBinding(element2, flush = false) {
     const binding = this.bindings.get(element2);
     if (binding) {
@@ -1865,6 +2000,9 @@ var SimplyBind = class {
     }
     this.observer?.disconnect();
     this.observer = null;
+    clearTimeout(this.#idleTimer);
+    this.#idleTimer = null;
+    this.#resolveIdleWaiters();
   }
 };
 function bind(options) {
@@ -3458,7 +3596,7 @@ function composeApp(definition) {
       }
     }
     for (const key of Reflect.ownKeys(source)) {
-      if (["components", "data", "__proto__", "prototype"].includes(key) || name !== "app" && (key === "start" || key === "onError")) {
+      if (["components", "data", "__proto__", "prototype"].includes(key) || name !== "app" && ["start", "destroy", "onError"].includes(key)) {
         continue;
       }
       const entry = Object.getOwnPropertyDescriptor(source, key);
@@ -3490,6 +3628,7 @@ var APP_OPTIONS = [
   "templates",
   "styles",
   "start",
+  "destroy",
   "onError",
   "components",
   "behaviors",
@@ -3560,19 +3699,39 @@ var SimplyApp = class {
     this.destroy = () => {
       if (this.destroyed) return;
       this.destroyed = true;
-      dragApi.destroy();
-      binding.destroy();
-      destroyCommands(commandApi);
-      destroyShortcuts(shortcutApi);
-      destroyAccesskeys(keys);
-      router.destroy();
-      behaviorApi.destroy();
-      includeApi.destroy();
+      const dispose = [
+        () => {
+          const destroy2 = options.destroy;
+          if (typeof destroy2 === "function") {
+            destroy2.call(this);
+          }
+        },
+        () => dragApi.destroy(),
+        () => binding.destroy(),
+        () => destroyCommands(commandApi),
+        () => destroyShortcuts(shortcutApi),
+        () => destroyAccesskeys(keys),
+        () => router.destroy(),
+        () => behaviorApi.destroy(),
+        () => includeApi.destroy()
+      ];
+      const errors = [];
+      for (const cleanup of dispose) {
+        try {
+          cleanup();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
       this.binding = void 0;
       this.routes = void 0;
       this.behaviors = void 0;
       this.includes = void 0;
       this.accesskeys = void 0;
+      if (errors.length === 1) throw errors[0];
+      if (errors.length > 1) {
+        throw new AggregateError(errors, "simplyflow/app: multiple cleanups failed");
+      }
     };
   }
   get app() {
