@@ -280,13 +280,17 @@ class SimplyBind
         }
 
         const clone = content.cloneNode(true)
+        const attribute = this.options.attribute
         let root = clone.firstElementChild
         if (!root) {
             const params = new URLSearchParams({ 'simply-template': template.id })
             root = template.ownerDocument.createComment(` ${params} `)
             clone.replaceChildren(root)
+        } else if (template.id) {
+            root.setAttribute(attribute+'-template', template.id)
+        } else {
+            root.removeAttribute(attribute+'-template')
         }
-        const attribute = this.options.attribute
 
         const attributes = [attribute+'-field',attribute+'-edit',attribute+'-list',attribute+'-map']
         const bindings = clone.querySelectorAll(`[${attribute}-field],[${attribute}-edit],[${attribute}-list],[${attribute}-map]`)

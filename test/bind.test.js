@@ -13,7 +13,7 @@ describe('bind can', () => {
     document.body.innerHTML = `<template id="card"><b>Old</b></template>
       <main data-flow-${kind}="items">
         <template rel="card" data-flow-match="draft"></template>
-        <template><i>Keep</i></template>
+        <template><i data-flow-template="stale">Keep</i></template>
       </main>`
     const data = signal({ items })
     const binding = bind({ root: data })
@@ -21,12 +21,15 @@ describe('bind can', () => {
     const template = document.getElementById('card')
     const other = host.querySelector('i')
     try {
+      expect(host.querySelector('b').getAttribute('data-flow-template')).toBe('card')
+      expect(host.querySelector('i[data-flow-template]')).toBeNull()
       template.innerHTML = '<strong data-flow-field=":root.title"></strong>'
       data.title = 'Edited'
       expect(binding.rerender(host, template)).toBe(true)
       await wait()
       expect(host.querySelector('b')).toBeNull()
       expect(host.querySelector('strong').textContent).toBe('Edited')
+      expect(host.querySelector('strong').getAttribute('data-flow-template')).toBe('card')
       expect(host.querySelector('i')).toBe(other)
       data.title = 'Still bound'
       await wait()
@@ -88,11 +91,16 @@ describe('bind can', () => {
     }
   })
 
-  it.each([['field', 'first'], ['map', { first: 1, second: 2 }]])(
-    'restores an initially empty named template in a %s', (kind, items) => {
+  it.each([
+    ['field', 'data-flow', 'first'],
+    ['map', 'data-flow', { first: 1, second: 2 }],
+    ['list', 'data-custom', ['first', 'second']]
+  ])(
+    'restores an initially empty named %s template with prefix %s',
+    (kind, attribute, items) => {
       document.body.innerHTML = `<template id="cart+é&amp;row"></template>
-        <main data-flow-${kind}="items"><template rel="cart+é&amp;row"></template></main>`
-      const binding = bind({ root: signal({ items }) })
+        <main ${attribute}-${kind}="items"><template rel="cart+é&amp;row"></template></main>`
+      const binding = bind({ root: signal({ items }), attribute })
       const host = document.querySelector('main')
       const template = document.getElementById('cart+é&row')
       try {
@@ -101,9 +109,13 @@ describe('bind can', () => {
         for (const marker of markers) {
           expect(marker.data.trim()).toBe('simply-template=cart%2B%C3%A9%26row')
         }
-        template.innerHTML = '<b>Restored</b>'
+        template.innerHTML = `<b ${attribute}-template="stale">Restored</b>`
         expect(binding.rerender(host, template)).toBe(true)
-        expect(host.querySelectorAll('b')).toHaveLength(markers.length)
+        const roots = [...host.querySelectorAll('b')]
+        expect(roots).toHaveLength(markers.length)
+        for (const root of roots) {
+          expect(root.getAttribute(attribute+'-template')).toBe('cart+é&row')
+        }
         expect(markers.every(node => !node.isConnected)).toBe(true)
       } finally {
         binding.destroy()
