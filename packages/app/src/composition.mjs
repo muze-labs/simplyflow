@@ -111,11 +111,12 @@ function mergedOption(definitions, key, hasComponents)
 
 // A realized record owns its edits. Nested records are materialized on first
 // use, so composing an app does not walk through every service at startup.
-function editableRecord(source, original, readSource, ancestor)
+function editableRecord(source, original, ancestor)
 {
     const array = Array.isArray(source)
     const target = array ? source.slice() : { ...source }
     const children = new Map()
+    const arrays = new Map()
     const location = { source, ancestor }
     const record = {}
 
@@ -131,13 +132,26 @@ function editableRecord(source, original, readSource, ancestor)
         })
     }
 
+    function updateChild(key, value) {
+        arrays.delete(key)
+        const child = children.get(key)
+        if (child && child !== value) {
+            // A captured view follows this property across whole-map edits.
+            // Empty it while the property is absent or holds another type.
+            records.get(child).replace(isRecord(value) ? value : {})
+        }
+    }
+
     function write(key, value) {
         const previous = Object.getOwnPropertyDescriptor(target, key)
+        if (children.has(key) && children.get(key) === value) {
+            return true
+        }
         if (!change(key, value)) {
             return false
         }
-        children.delete(key)
         try {
+            updateChild(key, value)
             record.changed?.([key])
         } catch (error) {
             if (previous) {
@@ -156,20 +170,21 @@ function editableRecord(source, original, readSource, ancestor)
             if (!Object.hasOwn(target, key) || !(isRecord(value) || Array.isArray(value))) {
                 return value
             }
-            if (!children.has(key)) {
-                // A service can refer back to itself or a parent service.
-                for (let parent = location; parent; parent = parent.ancestor) {
-                    if (parent.source === value) {
-                        return parent.view
-                    }
+            // A service can refer back to itself or a parent service.
+            for (let parent = location; parent; parent = parent.ancestor) {
+                if (parent.source === value || parent.view === value) {
+                    return parent.view
                 }
+            }
+            const cache = Array.isArray(value) ? arrays : children
+            if (!cache.has(key)) {
                 const child = editableRecord(value, name => {
                     const parent = original(key)
                     return parent && Object.hasOwn(parent, name) ? parent[name] : missing
-                }, () => original(key), location)
-                children.set(key, child)
+                }, location)
+                cache.set(key, child)
             }
-            return children.get(key)
+            return cache.get(key)
         },
         set(target, key, value) {
             return write(key, value)
@@ -179,30 +194,36 @@ function editableRecord(source, original, readSource, ancestor)
         }
     })
 
-    // Keep installed controllers attached to the same map, even when assigning
-    // an entire section. Notify consumers once, in the new declaration order.
+    // Replace the contents in declaration order and notify observers once.
     record.replace = source => {
         const previous = { ...target }
         const values = { ...source }
-        const keys = [...new Set([...Object.keys(target), ...Object.keys(values)])]
+        const keys = [...new Set([...Reflect.ownKeys(target), ...Reflect.ownKeys(values)])]
         function replace(values) {
             for (const key of keys) {
                 Reflect.deleteProperty(target, key)
             }
-            for (const [key, value] of Object.entries(values)) {
-                change(key, value)
+            for (const key of Reflect.ownKeys(values)) {
+                change(key, values[key])
             }
-            children.clear()
         }
+        const previousSource = location.source
         replace(values)
+        location.source = source
         try {
+            for (const key of keys) {
+                updateChild(key, Object.hasOwn(values, key) ? values[key] : missing)
+            }
             record.changed?.(keys)
         } catch (error) {
             replace(previous)
+            location.source = previousSource
+            for (const key of keys) {
+                updateChild(key, Object.hasOwn(previous, key) ? previous[key] : missing)
+            }
             throw error
         }
     }
-    record.restore = () => record.replace(readSource())
     location.view = view
     records.set(view, record)
     return view
@@ -226,25 +247,18 @@ export function onDefinitionChange(entries, changed)
 
 // Preserve the controller's methods and listener state. Named definitions are
 // read through the same map the controller's dispatch code uses.
-export function definitionView(controller, entries, installedNames = [])
+export function definitionView(controller, entries, controllers)
 {
-    const installed = new Map()
-    for (const key of installedNames) {
-        const record = records.get(entries[key])
-        if (record) {
-            installed.set(key, record)
-        }
-    }
     return new Proxy(controller, {
         get(target, key, receiver) {
             if (Reflect.has(target, key)) {
                 return Reflect.get(target, key, receiver)
             }
-            return Object.hasOwn(entries, key) ? entries[key] : undefined
+            const value = Object.hasOwn(entries, key) ? entries[key] : undefined
+            return controllers?.get(value) ?? value
         },
         set(target, key, value) {
-            if (installed.has(key) && !target.destroyed) {
-                installed.get(key).replace(value)
+            if (value && controllers?.get(entries[key]) === value) {
                 return true
             }
             if (Reflect.has(target, key)) {
@@ -253,10 +267,6 @@ export function definitionView(controller, entries, installedNames = [])
             return Reflect.set(entries, key, value)
         },
         deleteProperty(target, key) {
-            if (installed.has(key)) {
-                installed.get(key).restore()
-                return true
-            }
             if (Reflect.has(target, key)) {
                 return Reflect.deleteProperty(target, key)
             }

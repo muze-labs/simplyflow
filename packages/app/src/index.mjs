@@ -35,10 +35,9 @@ class SimplyApp
     constructor(definition={})
     {
         const { data, options, components } = composeApp(definition)
-        const app = definitionView(this, options, [
-            'transformers', 'actions', 'commands', 'shortcuts', 'behaviors',
-            'routes', 'templates', 'styles', 'drags', 'drops'
-        ])
+        const controllers = new WeakMap()
+        const mounted = {}
+        const app = definitionView(this, options, controllers)
         const container = options.container
         this.destroyed = false
         this.data = signal(data || {})
@@ -47,7 +46,16 @@ class SimplyApp
         installMarkup(container, options.templates, 'template')
         installMarkup(container, options.styles, 'style')
 
+        // The public app exposes the controller while its definition map is active.
+        const mount = (key, controller) => {
+            mounted[key] = controller
+            controllers.set(options[key], controller)
+        }
+
         for (const key of Object.keys(options)) {
+            if (options[key] == null) {
+                continue
+            }
             switch(key) {
                 case 'container':
                 case 'data':
@@ -63,23 +71,23 @@ class SimplyApp
                 case 'transformers':
                     break
                 case 'commands':
-                    this.commands = commands({ app, container, commands: options.commands})
+                    mount(key, commands({ app, container, commands: options.commands }))
                     break
                 case 'shortcuts':
-                    this.shortcuts = shortcuts({ app, shortcuts: options.shortcuts })
+                    mount(key, shortcuts({ app, shortcuts: options.shortcuts }))
                     break
                 case 'behaviors':
-                    this.behaviors = definitionView(behaviors({
+                    mount(key, definitionView(behaviors({
                         app, container, behaviors: options.behaviors
-                    }), options.behaviors || {})
+                    }), options.behaviors || {}))
                     break
                 case 'routes':
-                    this.routes = definitionView(
+                    mount(key, definitionView(
                         routes({ app, routes: options.routes }), options.routes || {}
-                    )
+                    ))
                     break
                 case 'actions':
-                    this.actions = actions({app, actions: options.actions})
+                    mount(key, actions({ app, actions: options.actions }))
                     break
                 case 'prototype':
                 case '__proto__':
@@ -105,13 +113,16 @@ class SimplyApp
         }
 
         onDefinitionChange(options, keys => {
-            if (keys.includes('baseURL') && this.routes) {
-                this.routes.init({ baseURL: options.baseURL || '/' })
+            if (keys.includes('baseURL') && mounted.routes) {
+                mounted.routes.init({ baseURL: options.baseURL || '/' })
             }
         })
         this.includes = includes({ container })
 
         this.accesskeys = accesskeys({ app, container })
+        // Dispose the controllers created at startup even if an app edit
+        // has since removed or replaced their definitions.
+        this.destroy = this.destroy.bind(this, mounted, options.templates, options.styles)
         return app
     }
 
@@ -120,11 +131,11 @@ class SimplyApp
         return this
     }
 
-    destroy()
+    destroy(mounted, templates, styles)
     {
         this.destroyed = true
-        onDefinitionChange(this.templates, undefined)
-        onDefinitionChange(this.styles, undefined)
+        onDefinitionChange(templates, undefined)
+        onDefinitionChange(styles, undefined)
         if (this.dragdrop) {
             this.dragdrop.destroy()
         }
@@ -132,22 +143,22 @@ class SimplyApp
             this.binding.destroy()
             this.binding = undefined
         }
-        if (this.commands) {
-            destroyCommands(this.commands)
+        if (mounted.commands) {
+            destroyCommands(mounted.commands)
         }
-        if (this.shortcuts) {
-            destroyShortcuts(this.shortcuts)
+        if (mounted.shortcuts) {
+            destroyShortcuts(mounted.shortcuts)
         }
         if (this.accesskeys) {
             destroyAccesskeys(this.accesskeys)
             this.accesskeys = undefined
         }
-        if (this.routes) {
-            this.routes.destroy()
+        if (mounted.routes) {
+            mounted.routes.destroy()
             this.routes = undefined
         }
-        if (this.behaviors) {
-            this.behaviors.destroy()
+        if (mounted.behaviors) {
+            mounted.behaviors.destroy()
             this.behaviors = undefined
         }
         if (this.includes) {
@@ -196,19 +207,20 @@ function initRoutes(app) {
     if (app.destroyed) {
         return
     }
-    if (app.routes) {
+    const router = app.routes
+    if (typeof router?.handleEvents === 'function') {
         if (app.baseURL) {
-            app.routes.init({ baseURL: app.baseURL })
+            router.init({ baseURL: app.baseURL })
         }
-        app.routes.handleEvents()
+        router.handleEvents()
         globalThis.setTimeout(() => {
-            if (app.destroyed || !app.routes) {
+            if (app.destroyed || app.routes !== router) {
                 return
             }
-            if (app.routes.has(globalThis.location?.hash)) {
-                app.routes.match(globalThis.location.hash)
+            if (router.has(globalThis.location?.hash)) {
+                router.match(globalThis.location.hash)
             } else {
-                app.routes.match(globalThis.location?.pathname+globalThis.location?.hash)
+                router.match(globalThis.location?.pathname+globalThis.location?.hash)
             }
         })
     }

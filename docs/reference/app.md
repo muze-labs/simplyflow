@@ -146,7 +146,10 @@ Deleting a property from `news.data` removes the value from reactive state.
 
 Plain objects supplied as top-level services also become editable definition
 maps. If you pass `{ api }` to `simply.app()`, edits to `news.api.formatLabel`
-leave the supplied plain object intact. A supplied class instance retains its
+leave the supplied plain object intact. A reference such as `const api = news.api`
+continues to see the current entries after assigning a new plain object to
+`news.api` or deleting the edit. This also applies to nested definition maps
+and plain objects added while the app runs. A supplied class instance retains its
 identity. Arrays have ordinary array deletion and can be restored by deleting
 the property that contains them.
 

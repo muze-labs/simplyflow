@@ -356,6 +356,64 @@ describe('app API', () => {
     }
   })
 
+  it.each(['api', 'commands'])('keeps references to %s live through whole-map edits', name => {
+    const original = { label() { return 'first' } }
+    const component = { [name]: original }
+    const testApp = app({ components: { component } })
+    try {
+      const held = testApp[name]
+      testApp[name] = { preview() { return 'preview' } }
+      expect(testApp[name]).toBe(held)
+      expect(held.preview()).toBe('preview')
+      expect(held.label).toBeUndefined()
+      expect(original.label()).toBe('first')
+
+      original.label = () => 'revised'
+      delete testApp[name]
+      expect(testApp[name]).toBe(held)
+      expect(held.label()).toBe('revised')
+      expect(held.preview).toBeUndefined()
+
+      testApp[name] = null
+      expect(testApp[name]).toBeNull()
+      expect(held.label).toBeUndefined()
+      delete testApp[name]
+      expect(testApp[name]).toBe(held)
+      expect(held.label()).toBe('revised')
+
+      delete component[name]
+      delete testApp[name]
+      expect(Object.hasOwn(testApp, name)).toBe(false)
+      expect(held.label).toBeUndefined()
+    } finally {
+      testApp.destroy()
+    }
+  })
+
+  it('keeps nested and runtime-added plain maps live through replacement', () => {
+    const tool = { labels: { save: 'Save' } }
+    const testApp = app({ tool })
+    try {
+      const labels = testApp.tool.labels
+      testApp.tool = { labels: { preview: 'Preview' } }
+      expect(testApp.tool.labels).toBe(labels)
+      expect(labels).toEqual({ preview: 'Preview' })
+      delete testApp.tool
+      expect(testApp.tool.labels).toBe(labels)
+      expect(labels.save).toBe('Save')
+
+      testApp.extra = { title: 'Initial' }
+      const extra = testApp.extra
+      testApp.extra = { title: 'Edited' }
+      expect(extra.title).toBe('Edited')
+      delete testApp.extra
+      expect(Object.hasOwn(testApp, 'extra')).toBe(false)
+      expect(Object.keys(extra)).toEqual([])
+    } finally {
+      testApp.destroy()
+    }
+  })
+
   it('dispatches current commands, actions, shortcuts and routes after deletion', () => {
     document.body.innerHTML = '<button data-simply-command="save">Save</button>'
     const calls = []
