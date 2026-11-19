@@ -1,6 +1,6 @@
 {
   "name": "@muze-labs/simplyflow-edit",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Compatibility wrapper for the experimental @muze-labs/simplyedit package.",
   "type": "module",
   "main": "./src/index.mjs",
@@ -8,6 +8,6 @@
     ".": "./src/index.mjs"
   },
   "dependencies": {
-    "@muze-labs/simplyedit": "0.1.1"
+    "@muze-labs/simplyedit": "0.1.2"
   }
 }
