@@ -18,6 +18,7 @@ const APP_OPTIONS = [
     'templates',
     'styles',
     'start',
+    'destroy',
     'onError',
     'components',
     'behaviors',
@@ -33,7 +34,7 @@ const APP_OPTIONS = [
 
 const runtimeProperties = new Set([
     'commands', 'actions', 'shortcuts', 'routes', 'behaviors',
-    'binding', 'dragdrop', 'includes', 'accesskeys', 'destroy', 'addCleanup'
+    'binding', 'dragdrop', 'includes', 'accesskeys', 'destroy'
 ])
 
 class SimplyApp
@@ -74,19 +75,16 @@ class SimplyApp
         // Dispose the installed controllers even if app code replaces a property.
         const { binding, commands: commandApi, shortcuts: shortcutApi, accesskeys: keys,
             routes: router, behaviors: behaviorApi, dragdrop: dragApi, includes: includeApi } = this
-        const cleanups = new Set()
-        this.addCleanup = cleanup => {
-            if (typeof cleanup !== 'function' || this.destroyed) {
-                throw new TypeError('simplyflow/app: addCleanup requires a function and a live app')
-            }
-            cleanups.add(cleanup)
-            return () => cleanups.delete(cleanup)
-        }
         this.destroy = () => {
             if (this.destroyed) return
             this.destroyed = true
             const dispose = [
-                ...Array.from(cleanups).reverse().map(cleanup => () => cleanup.call(this)),
+                () => {
+                    const destroy = options.destroy
+                    if (typeof destroy === 'function') {
+                        destroy.call(this)
+                    }
+                },
                 () => dragApi.destroy(),
                 () => binding.destroy(),
                 () => destroyCommands(commandApi),
@@ -96,7 +94,6 @@ class SimplyApp
                 () => behaviorApi.destroy(),
                 () => includeApi.destroy()
             ]
-            cleanups.clear()
             const errors = []
             for (const cleanup of dispose) {
                 try {

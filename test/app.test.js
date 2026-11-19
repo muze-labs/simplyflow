@@ -1321,28 +1321,22 @@ describe('app integration details', () => {
   })
 
 
-  it('runs registered cleanups once and disposes controllers after a cleanup failure', () => {
-    const mounted = app()
-    const calls = []
+  it('runs the app destroy hook once and disposes controllers if it throws', () => {
     const failure = new Error('unsubscribe failed')
-    mounted.addCleanup(function() {
+    const componentDestroy = jest.fn()
+    const destroy = jest.fn(function() {
       expect(this).toBe(mounted)
       expect(this.binding).toBeDefined()
-      calls.push('first')
-    })
-    const unregister = mounted.addCleanup(() => calls.push('removed'))
-    unregister()
-    mounted.addCleanup(() => {
-      calls.push('last')
-      mounted.destroy()
+      this.destroy()
       throw failure
     })
+    const mounted = app({ destroy, components: { editor: { destroy: componentDestroy } } })
 
     expect(() => mounted.destroy()).toThrow(failure)
     expect(mounted.binding).toBeUndefined()
     mounted.destroy()
-    expect(calls).toEqual(['last', 'first'])
-    expect(() => mounted.addCleanup(() => {})).toThrow('live app')
+    expect(destroy).toHaveBeenCalledTimes(1)
+    expect(componentDestroy).not.toHaveBeenCalled()
   })
 
   it('destroy stops command listeners', async () => {

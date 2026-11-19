@@ -65,6 +65,7 @@ const contacts = app({
 | `components` | `object` | Advanced/experimental reusable app option groups. Component design is still evolving. |
 | `baseURL` | `string` | Base path used by the route module. |
 | `start` | `function` | Optional startup function called with `this` set to the app. Routes are initialized after it finishes. |
+| `destroy` | `function` | Optional synchronous app cleanup hook called with `this` set to the app. |
 | `onError` | `function` | Optional error handler for `start()` and action errors. |
 
 Custom top-level options are available as properties on the app. This is useful for services:
@@ -228,18 +229,29 @@ const news = simply.app({
 })
 ```
 
-## `app.addCleanup(fn)`
-
-Register synchronous cleanup for a subscription or other app-owned resource.
-The returned function unregisters the callback. When the app is destroyed,
-callbacks run once in reverse registration order with `this` set to the app.
-They run before SimplyFlow disposes its controllers. A cleanup failure still
-allows the remaining callbacks and controller cleanup to run. Destroy reports
-a single failure directly or groups multiple failures in an `AggregateError`.
-
 ## `app.destroy()`
 
-Stops the application and releases app-scoped listeners/observers.
+Stops the application and releases app-scoped listeners and observers. An app
+can define a synchronous `destroy` hook alongside `start` to release resources
+it owns.
+
+```js
+const contacts = simply.app({
+  start() {
+    this.peopleModel = simply.model({ data: [] })
+  },
+  destroy() {
+    this.peopleModel?.destroy()
+  }
+})
+
+contacts.destroy()
+```
+
+The top-level hook runs once with the app as `this`, before SimplyFlow
+disposes its controllers. Controller cleanup continues if the hook throws.
+Destroy reports a single failure directly or groups multiple failures in an
+`AggregateError`.
 
 It destroys:
 
